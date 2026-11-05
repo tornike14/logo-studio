@@ -1,9 +1,11 @@
 // Collects real competitor logos. Cached and resumable: each run works for a time budget and is run
 // again until it reports remaining 0, so a long list survives tool time limits.
 //   node competitors.mjs plan.json --out field [--budget 90] [--retry-failed]
-// plan.json: { "country": "us", "apps": ["Calm", {"term":"meditation","limit":10}],
+// plan.json: { "country": "us", "apps": ["Calm", {"term":"meditation","limit":10}, {"id":571800810}],
 //              "play": ["com.calm.android", {"term":"meditation","limit":5}],
-//              "sites": ["calm.com"], "files": [{"name":"Rival","path":"rival.png"}] }
+//              "sites": ["calm.com"], "files": [{"name":"Rival","path":"rival.png","replaces":"site:rival.com"}],
+//              "images": [{"name":"Rival","url":"https://direct/link/to/logo.png","replaces":"site:rival.com"}],
+//              "exclude": ["Wrong App"], "rename": {"Long Store Title":"Brand"} }
 import { copyFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, extname, resolve, dirname } from 'node:path';
 import { args, readJson, writeJson, write, say, safeName, sniff, rasterSize, EXT } from './lib/core.mjs';
@@ -61,10 +63,11 @@ function store(buf, slug, meta) {
   write(join(out, file), data);
   const long = Math.max(width || 0, height || 0), short = Math.min(width || 0, height || 0);
   const quality = type === 'svg' || short >= 96 || (long >= 160 && short >= 32) ? 'good' : 'low';
-  return { ...meta, file, type, width, height, quality };
+  // The sheets cannot draw WebP, though browsers and the page can.
+  return { ...meta, file, type, width, height, quality, ...(type === 'webp' ? { note: 'WebP: blank on sheets, shown on the page' } : {}) };
 }
 function cleanSvg(s) {
-  let t = s.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '').replace(/currentColor/g, '#111111');
+  let t = s.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '').replace(/currentColor/g, '#111111').replace(/var\(--[^,)]+,\s*([^)]+)\)/g, '$1').replace(/var\(--[^)]+\)/g, '#111111');
   if (!/xmlns=/.test(t.slice(0, 400))) t = t.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
   return t;
 }
@@ -77,25 +80,41 @@ function visible(svg) {
   } catch { return false; }
 }
 
+const norm = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '');
 function push(item) {
-  state.items.push({ date: today, ...item });
+  // Pages refer to logos by name, so two different apps may not share one.
+  let name = item.name;
+  if (state.items.some((i) => i.name === name)) {
+    const tag = String(item.seller || item.source).split(/[\s,]/)[0];
+    name = `${item.name} (${tag})`;
+    for (let n = 2; state.items.some((i) => i.name === name); n++) name = `${item.name} (${tag} ${n})`;
+  }
+  state.items.push({ date: today, ...item, name });
 }
 
 async function appStore(entry) {
+  const id = entry.id;
   const term = typeof entry === 'string' ? entry : entry.term;
-  const limit = typeof entry === 'string' ? 1 : entry.limit || 10;
+  const exact = typeof entry === 'string';
+  const limit = exact ? 1 : entry.limit || 10;
   const wait = state.appStoreAt + 3200 - Date.now();
   if (wait > 0) await sleep(wait);
   state.appStoreAt = Date.now();
-  const q = new URLSearchParams({ term, entity: 'software', limit: String(limit), country });
-  const r = await get(`https://itunes.apple.com/search?${q}`);
+  const url = id ? `https://itunes.apple.com/lookup?${new URLSearchParams({ id: String(id), country })}` : `https://itunes.apple.com/search?${new URLSearchParams({ term, entity: 'software', limit: String(limit), country })}`;
+  const r = await get(url);
   if (!r.ok) throw Object.assign(new Error('http'), { code: `http-${r.status}` });
-  for (const app of (await r.json()).results) {
+  const { results } = await r.json();
+  let added = 0;
+  for (const app of results) {
+    const title = app.trackName;
+    // A name search returns the closest app even when the wanted one does not exist.
+    const weak = exact && !norm(title).includes(norm(term).slice(0, 12)) && !norm(term).includes(norm(title.split(/[:\u2013\u2014-]/)[0]));
     if (state.items.some((i) => i.appId === app.trackId)) continue;
     const img = await get(app.artworkUrl512);
-    const item = store(Buffer.from(await img.arrayBuffer()), `app-${safeName(app.trackName)}-${app.trackId}`, { name: app.trackName.split(/\s*[:–—]\s+|\s+[-|]\s+/)[0], fullName: app.trackName, source: 'app-store', sourceUrl: app.trackViewUrl, seller: app.sellerName, genre: app.primaryGenreName, ratings: app.userRatingCount ?? 0, appId: app.trackId, kind: 'icon', evidence: 'fetched' });
-    if (item) push(item);
+    const item = store(Buffer.from(await img.arrayBuffer()), `app-${safeName(title)}-${app.trackId}`, { name: title.split(/\s*[:\u2013\u2014]\s+|\s+[-|&]\s+/)[0].trim(), fullName: title, query: id ? `id ${id}` : term, source: 'app-store', sourceUrl: app.trackViewUrl, seller: app.sellerName, genre: app.primaryGenreName, ratings: app.userRatingCount ?? 0, appId: app.trackId, kind: 'icon', evidence: 'fetched', ...(weak ? { flag: `searched "${term}", got "${title}"` } : {}) });
+    if (item) { push(item); added++; }
   }
+  if (!added) throw Object.assign(new Error('none'), { code: results.length ? 'already-collected' : 'no-match' });
 }
 
 async function play(entry) {
@@ -152,8 +171,12 @@ async function site(domain) {
   const title = decode(html.match(/property=["']og:site_name["'][^>]*content=["']([^"']+)/i)?.[1] || html.match(/<title[^>]*>([^<]+)/i)?.[1] || '');
   const blocked = !page.ok || /attention required|just a moment|access denied|forbidden|are you (a )?human|security check/i.test(title);
   const fromHost = host.split('.')[0].replace(/^./, (c) => c.toUpperCase());
-  const name = blocked || !title ? fromHost : title.split(/\s+[|–—:-]\s+/)[0].trim();
-  const meta = { name: name.slice(0, 40), source: 'website', sourceUrl: page.url, ...(blocked ? { note: 'site blocked automated reading, check by hand' } : {}) };
+  // Page titles are often slogans. The brand is the part that matches the web address, if any part does.
+  const parts = title.split(/\s+[|\u2013\u2014:-]\s+|\s+with\s+|,\s+/);
+  const root = norm(host.split('.')[0]);
+  const named = parts.find((t) => norm(t) === root) || title.match(new RegExp(`\\b${host.split('.')[0]}\\b`, 'i'))?.[0];
+  const name = blocked || !title ? fromHost : named || (parts[0].length <= 24 ? parts[0].trim() : fromHost);
+  const meta = { name: name.slice(0, 40), source: 'website', sourceUrl: page.url, siteTitle: title.slice(0, 80), ...(blocked ? { note: 'site blocked automated reading, check by hand' } : {}) };
   const found = [];
   const seen = new Set();
   for (const c of siteCandidates(html, page.url)) {
@@ -175,16 +198,27 @@ async function site(domain) {
   push({ ...found[0], alternates: found.slice(1).map((f) => f.file) });
 }
 
-function importFile(entry) {
-  const from = resolve(dirname(planPath), entry.path);
-  const item = store(readFileSync(from), `file-${safeName(entry.name)}`, { name: entry.name, source: 'user-supplied', sourceUrl: entry.url || null, kind: entry.kind || 'logo', evidence: 'user-supplied' });
+async function importImage(entry) {
+  const r = await get(entry.url);
+  if (!r.ok) throw Object.assign(new Error('http'), { code: `http-${r.status}` });
+  const item = store(Buffer.from(await r.arrayBuffer()), `image-${safeName(entry.name)}`, { name: entry.name, source: 'direct link', sourceUrl: entry.url, kind: entry.kind || 'logo', evidence: 'fetched' });
   if (!item) throw Object.assign(new Error('unreadable'), { code: 'unreadable-image' });
   push(item);
+  if (entry.replaces) state.done[entry.replaces] = 'ok';
+}
+
+function importFile(entry) {
+  const from = resolve(dirname(planPath), entry.path);
+  const item = store(readFileSync(from), `file-${safeName(entry.name)}`, { name: entry.name, source: entry.url ? 'saved' : 'supplied', sourceUrl: entry.url || null, kind: entry.kind || 'logo', evidence: entry.url ? 'fetched' : 'user-supplied' });
+  if (!item) throw Object.assign(new Error('unreadable'), { code: 'unreadable-image' });
+  push(item);
+  if (entry.replaces) state.done[entry.replaces] = 'ok';
 }
 
 const jobs = [
   ...(plan.files || []).map((e) => [`file:${e.name}`, () => importFile(e)]),
-  ...(plan.apps || []).map((e) => [`app:${e.term || e}`, () => appStore(e)]),
+  ...(plan.images || []).map((e) => [`image:${e.name}`, () => importImage(e)]),
+  ...(plan.apps || []).map((e) => [`app:${e.id || e.term || e}`, () => appStore(e)]),
   ...(plan.play || []).map((e) => [`play:${e.term || e}`, () => play(e)]),
   ...(plan.sites || []).map((e) => [`site:${e}`, () => site(e)]),
 ];
@@ -196,9 +230,26 @@ for (const [key, job] of pending) {
   ran++;
   save();
 }
+// Curation lives in the plan, so a repeat run cannot bring back what was removed.
+const excluded = new Set(plan.exclude || []);
+state.items = state.items.filter((i) => !excluded.has(i.name) && !excluded.has(i.fullName) && !excluded.has(i.file));
+for (const [from, to] of Object.entries(plan.rename || {})) for (const i of state.items) if (i.name === from || i.fullName === from) i.name = to;
 save();
-const failed = Object.entries(state.done).filter(([, v]) => v !== 'ok').map(([k, v]) => `${k} (${v})`);
+const SOFT = new Set(['already-collected']);
+const failed = Object.entries(state.done).filter(([, v]) => v !== 'ok' && !SOFT.has(v)).map(([k, v]) => `${k} (${v})`);
 const left = jobs.filter(([key]) => !state.done[key]).length;
-const report = { collected: state.items.length, good: state.items.filter((i) => i.quality === 'good').length, low: state.items.filter((i) => i.quality === 'low').length, ranThisTime: ran, remaining: left, failed, index: indexPath };
+const seen = {};
+for (const i of state.items) (seen[norm(i.name.replace(/\s*\(.*\)$/, ''))] ||= []).push(i.name);
+const report = {
+  collected: state.items.length,
+  good: state.items.filter((i) => i.quality === 'good').length,
+  low: state.items.filter((i) => i.quality === 'low').map((i) => i.name),
+  checkTheseMatches: state.items.filter((i) => i.flag).map((i) => i.flag),
+  sameBrandTwice: Object.values(seen).filter((v) => v.length > 1),
+  notes: state.items.filter((i) => i.note).map((i) => `${i.name}: ${i.note}`),
+  // A guessed web address can belong to a different company, so each title needs a glance.
+  siteTitles: state.items.filter((i) => i.siteTitle).map((i) => `${i.name} <- ${new URL(i.sourceUrl).hostname}: ${i.siteTitle}`),
+  ranThisTime: ran, remaining: left, failed, index: indexPath,
+};
 say(JSON.stringify(report, null, 2));
 if (left) say('MORE TO DO: run the same command again.');

@@ -11,10 +11,10 @@ const base = dirname(path);
 const c = readJson(path);
 const problems = [];
 const need = (cond, msg) => { if (!cond) problems.push(msg); };
-const TOP = ['schema', 'brand', 'page', 'theme', 'assets', 'sources', 'sections', 'allowTerms'];
+const TOP = ['schema', 'brand', 'page', 'theme', 'assets', 'sources', 'sections'];
 for (const k of Object.keys(c)) need(TOP.includes(k), `unknown top-level key: ${k}`);
 need(c.schema === 1, 'schema must be 1');
-need(['app', 'website', 'both', 'print'].includes(c.brand?.surface), 'brand.surface must be app, website, both or print');
+need(['app', 'website', 'both', 'local', 'print'].includes(c.brand?.surface), 'brand.surface must be app, website, both, local or print');
 need(['icon', 'wide'].includes(c.brand?.shape), 'brand.shape must be icon or wide');
 need(c.brand?.name, 'brand.name is missing');
 need(c.page?.title, 'page.title is missing');
@@ -63,10 +63,10 @@ if (live('gap')) {
   for (const f of g.findings || []) need(f.opinion === true || f.sources?.length, `finding "${f.title}" needs sources or opinion: true`);
   for (const f of g.findings || []) for (const id of f.sources || []) need(sourceIds.has(id), `finding "${f.title}": unknown source ${id}`);
   need(g.closest?.length >= 1, 'gap needs the closest look-alikes. Uniqueness cannot be claimed without them.');
-  for (const x of g.closest || []) need(fieldPick(field, x.name), `closest: ${x.name} is not in the competitor index`);
+  for (const x of g.closest || []) { if (x.asset) use(x.asset, 'closest'); else need(fieldPick(field, x.name), `closest: ${x.name} is not in the competitor index`); }
 }
 if (live('idea')) need(byId.idea.principles?.length >= 3, 'idea needs at least three principles');
-if (live('sizes')) use(byId.sizes.asset, 'sizes.asset');
+if (live('sizes')) { use(byId.sizes.asset, 'sizes.asset'); need(Math.max(...(byId.sizes.sizes || [0])) <= 360, 'sizes above 360 px overflow a phone screen'); }
 if (live('construction')) use(byId.construction.drawing, 'construction.drawing');
 for (const id of ['appearances', 'system', 'alternatives']) for (const x of live(id)?.items || []) use(x.asset, `${id}`);
 if (live('alternatives')) need(byId.alternatives.items?.length >= 2, 'alternatives needs at least two real rejected concepts');
@@ -75,7 +75,7 @@ for (const s of live('context')?.scenes || []) {
   use(s.ours, 'context');
   for (const n of s.others || []) need(fieldPick(field, n), `context: ${n} is not in the competitor index`);
 }
-if (live('motion')) use(byId.motion.svg, 'motion.svg');
+if (live('motion')) { use(byId.motion.svg, 'motion.svg'); need(['reveal', 'handoff', 'draw', 'custom', undefined].includes(byId.motion.preset), 'motion.preset must be reveal, handoff, draw or custom'); }
 if (live('next')) need(byId.next.unverified?.length >= 1, 'next must say what was not verified');
 
 if (a.page) {
@@ -84,9 +84,9 @@ if (a.page) {
   need(!/\{\{|\{count\}/.test(html), 'page still holds a placeholder');
   need(html.length < 16 * 1024 * 1024, 'page is over 16 MB');
   const text = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|data:[a-z/+]+;base64,[A-Za-z0-9+/=]+/g, ' ').replace(/<[^>]+>/g, ' ');
-  // Words from the first brand this page was made for, which must not leak into another brand's page.
-  const allowed = new Set((c.allowTerms || []).concat(c.brand?.name || '').map((t) => t.toLowerCase()));
-  for (const term of ['Big Why', 'orb', 'Depth', 'iOS 26']) if (!allowed.has(term.toLowerCase()) && new RegExp(`\\b${term}\\b`, 'i').test(text) && !(term === 'iOS 26' && ['app', 'both'].includes(c.brand?.surface))) problems.push(`page text mentions "${term}", which looks copied from another brand`);
+  if (/lorem ipsum|TODO|TBD/.test(text)) problems.push('page text still holds placeholder words');
+  // Absolute claims need the sample beside them.
+  for (const m of text.matchAll(/[^.]*\b(unique|one of a kind|no other|nobody else|no one else|the only (?:icon|logo|mark|brand|app|one)|the first (?:icon|logo|mark|brand|app))\b[^.]*\./gi)) if (!/\b(here|these|this sample|sample|logos|looked at|in this field|of the)\b/i.test(m[0])) problems.push(`this absolute claim needs its sample: "${m[0].trim().slice(0, 90)}"`);
 }
 for (const p of problems) say(`PROBLEM  ${p}`);
 say(problems.length ? `${problems.length} problem(s). Fix them and run again.` : 'Page check passed.');

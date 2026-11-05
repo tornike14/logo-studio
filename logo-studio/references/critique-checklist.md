@@ -22,7 +22,9 @@ Run this on the size board in every round of gate 5. Be hard on your own work. A
 ## Meaning
 
 - Could this belong to a direct competitor? Hold it against the field sheet.
-- Does it accidentally look like something else? Check for a map pin, a target, a chat bubble, anything rude, and how it looks upside down. Say each reading out loud.
+- Does it accidentally look like something else? Check for a map pin, a target, a flower, a chat bubble, anything rude, and how it looks upside down. Say each reading out loud.
+- Does it look like a religious or national symbol, a star, or a letter in another alphabet? For a name in two scripts, read it as a reader of each script would.
+- Would a stranger name the object you meant, or a more common object with the same outline?
 - Is it a known logo? Compare it with the closest look-alikes.
 - If the brand changed its name, would the mark still make sense?
 
@@ -31,6 +33,14 @@ Run this on the size board in every round of gate 5. Be hard on your own work. A
 - Are all measurements part of the rule, apart from recorded optical corrections?
 - Do the wordmark and the mark share a weight and a feeling? Is the spacing even by eye?
 - Is any effect there to hide a weak shape?
+
+## Wordmarks
+
+- Is it readable at the width of a phone header, about 120 px? Check the zoomed copies on the board.
+- Is the spacing even by eye? Check the awkward pairs, such as r-n, which can read as m, and any repeated letters.
+- Does one detail carry the idea, or is it just a font?
+- Is there a small form for a browser tab?
+- Thin lines can work in a wordmark if they survive at header size. Judge by the board, not by percentages.
 
 ## Before moving on
 

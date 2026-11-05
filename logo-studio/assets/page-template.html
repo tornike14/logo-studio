@@ -25,26 +25,26 @@ section>.col{display:flex;flex-direction:column;gap:16px}
 .verdict b{font-weight:650}
 
 /* field */
-.groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
 .group{background:var(--surface);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:12px;min-width:0}
 .group header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .count{font-family:var(--mono);font-size:13px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .group p{font-size:15px;color:var(--ink-soft)}
 .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:14px 10px;margin-top:6px}
 .app{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
-.app img{width:52px;height:52px;border-radius:12px;display:block;background:var(--hair)}
+.app img{width:52px;height:52px;border-radius:12px;display:block;background:var(--plate)}
 .app figcaption{font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.2;overflow-wrap:anywhere}
 .app.ours img{outline:2.5px solid var(--coral);outline-offset:3px}
 .app.ours figcaption{color:var(--ink);font-weight:600}
 
 /* findings */
-.findings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.findings{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px}
 .finding{display:flex;flex-direction:column;gap:8px;border-top:2px solid var(--ink);padding-top:14px}
 .finding p{font-size:15.5px;color:var(--ink-soft)}
 .pair{display:flex;gap:28px;align-items:center;flex-wrap:wrap;background:var(--surface);border-radius:22px;padding:24px}
 .pair .two{display:flex;gap:16px}
 .pair figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft)}
-.pair img{width:96px;height:96px;border-radius:22px;display:block}
+.pair img{width:96px;height:96px;border-radius:22px;display:block;object-fit:contain;background:var(--plate)}
 .pair p{flex:1 1 280px;min-width:0}
 
 /* idea */
@@ -66,7 +66,7 @@ blockquote{margin:0;font-family:var(--display);font-size:clamp(22px,2.6vw,28px);
 .sizes{display:flex;align-items:flex-end;gap:28px;flex-wrap:wrap;background:var(--surface);border-radius:22px;padding:28px}
 .sz{display:flex;flex-direction:column;align-items:center;gap:10px}
 .sz span{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
-.sz img{display:block}
+.sz img{display:block;max-width:100%}
 
 /* variants */
 .variants{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:24px}
@@ -96,14 +96,19 @@ blockquote{margin:0;font-family:var(--display);font-size:clamp(22px,2.6vw,28px);
 .stage .hero-layer{transition-duration:1.1s;transition-delay:.15s}
 .stage .halo{opacity:0;transition:opacity 1s ease .5s}
 .stage.go .halo{opacity:1}
-button.play{font:inherit;font-size:15px;font-weight:600;border:0;border-radius:999px;padding:12px 22px;background:var(--blue);color:#fff;cursor:pointer;align-self:flex-start}
+.stage.reveal.go svg{animation:logo-reveal 1.1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes logo-reveal{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.stage.draw .draw{stroke-dasharray:1;stroke-dashoffset:0}
+.stage.draw.go .draw{animation:logo-draw 1.4s ease both}
+@keyframes logo-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+button.play{font:inherit;font-size:15px;font-weight:600;border:0;border-radius:999px;padding:12px 22px;background:var(--blue);color:var(--on-accent);cursor:pointer;align-self:flex-start}
 button.play:focus-visible{outline:3px solid var(--coral);outline-offset:3px}
-@media (prefers-reduced-motion: reduce){.stage svg *,.stage .halo{transition:none}}
+@media (prefers-reduced-motion: reduce){.stage svg *,.stage .halo{transition:none;animation:none!important}}
 
 /* alternatives */
 .alts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
 .alt{display:flex;flex-direction:column;gap:10px}
-.alt img{width:100%;max-width:220px;aspect-ratio:1;border-radius:22.5%;display:block;opacity:.92}
+.alt img{width:100%;max-width:220px;aspect-ratio:1;border-radius:22.5%;display:block}
 .alt p{font-size:15px;color:var(--ink-soft)}
 
 /* next */
@@ -127,10 +132,16 @@ body{margin:0}
 .thin{background:var(--wash);border-radius:14px;padding:12px 16px;font-size:15px;max-width:680px}
 .closest{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
 .look{display:flex;gap:14px;align-items:center;min-width:0}
-.look img{width:56px;height:56px;border-radius:13px;display:block;flex:none;background:var(--hair);object-fit:contain}
+.look img{width:56px;height:56px;border-radius:13px;display:block;flex:none;background:var(--plate);object-fit:contain}
 .look p{font-size:14.5px;color:var(--ink-soft);min-width:0}
 .look b{color:var(--ink);display:block;font-weight:600}
-.app.wide img{object-fit:contain;padding:6px;box-sizing:border-box}
+.app.wide{grid-column:span 2}
+.app.wide img{width:124px;object-fit:contain;padding:8px 10px;box-sizing:border-box}
+.shape-wide .variants{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.shape-wide .alts{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.shape-wide .alt img,.shape-wide .variant img{max-width:100%}
+.shape-wide .sizes{align-items:center}
+.control{font-size:12px;color:var(--ink-soft);margin-left:8px;font-weight:500}
 .scene-wrap{margin:0;display:flex;flex-direction:column;gap:14px;align-items:center;flex:1 1 320px;max-width:520px;min-width:0}
 .scene-wrap figcaption{font-size:15px;color:var(--ink-soft);text-align:center}
 .scene-wrap figcaption b{color:var(--ink)}
@@ -145,7 +156,7 @@ body{margin:0}
 .avatars{display:flex;gap:18px;justify-content:center;flex-wrap:wrap}
 .avatars img{width:72px;height:72px;border-radius:50%;object-fit:cover;background:var(--hair);display:block}
 .sign{width:100%;border-radius:14px;padding:44px 24px;display:flex;justify-content:center;background:#23211E}
-.sign img{height:120px;width:auto;max-width:100%;border-radius:18px}
+.sign img{height:170px;width:auto;max-width:100%}
 </style>
 
 <main class="page shape-{{SHAPE}}">

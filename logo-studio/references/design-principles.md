@@ -34,6 +34,12 @@ Gate 3 shows where a category has gathered, and those places cost distinctivenes
 
 Good ideas often come from changing the point of view: look into something instead of at it, draw the space around an object, draw the moment before or after, draw the structure instead of the surface. If every competitor shows a thing from the front, there may be room in showing it from above.
 
+## Letters can be the logo
+
+A symbol is not always the answer. When a name is short, or written in a script with real character, the strongest logo is often the word itself with the idea drawn into one letter: a stroke that becomes the object, a rule that finishes the word. Lettering also solves a problem that symbols cannot, because people read the name every time they see it.
+
+Treat scripts other than Latin with respect. Lead with the language the customer reads, and draw the letters from a good font's real structure. Have a native reader check them before anything is printed.
+
 ## Name the mark
 
 Give the idea a short name. It keeps the work honest, and it helps the page and the team talk about it.

@@ -25,12 +25,12 @@ function stop(child) {
   else { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } } }
 }
 
-export async function screenshot(htmlPath, out, { width = 1280, height = 2600, scheme = 'light', timeoutMs = 40000, browser = findBrowser() } = {}) {
+export async function screenshot(htmlPath, out, { width = 1280, height = 2600, scheme = 'light', scale = 1, waitMs = 0, timeoutMs = 40000, browser = findBrowser() } = {}) {
   if (!browser) return { ok: false, reason: 'no-browser' };
   mkdirSync(dirname(out), { recursive: true });
   rmSync(out, { force: true });
   const profile = mkdtempSync(join(tmpdir(), 'logo-studio-'));
-  const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--force-device-scale-factor=1', `--user-data-dir=${profile}`, `--blink-settings=preferredColorScheme=${scheme === 'dark' ? 0 : 1}`, `--window-size=${width},${height}`, `--screenshot=${out}`, /^https?:/.test(htmlPath) ? htmlPath : pathToFileURL(htmlPath).href], { stdio: 'ignore', detached: process.platform !== 'win32', windowsHide: true });
+  const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', `--force-device-scale-factor=${scale}`, ...(waitMs ? [`--virtual-time-budget=${waitMs}`] : []), `--user-data-dir=${profile}`, `--blink-settings=preferredColorScheme=${scheme === 'dark' ? 0 : 1}`, `--window-size=${width},${height}`, `--screenshot=${out}`, /^https?:/.test(htmlPath) ? htmlPath : pathToFileURL(htmlPath).href], { stdio: 'ignore', detached: process.platform !== 'win32', windowsHide: true });
   let failed = null;
   child.on('error', (e) => { failed = e.message; });
   const started = Date.now();
@@ -47,4 +47,19 @@ export async function screenshot(htmlPath, out, { width = 1280, height = 2600, s
   try { rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* a locked temp folder is harmless */ }
   const ok = stable >= 3;
   return { ok, reason: ok ? undefined : failed || 'timeout', ms: Date.now() - started };
+}
+
+// Runs a page and returns its final HTML, which is how a page reports its own height.
+export async function dumpDom(htmlPath, { width = 1280, height = 900, scheme = 'light', timeoutMs = 25000, browser = findBrowser() } = {}) {
+  if (!browser) return null;
+  const profile = mkdtempSync(join(tmpdir(), 'logo-studio-'));
+  const child = spawn(browser, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--virtual-time-budget=4000', `--blink-settings=preferredColorScheme=${scheme === 'dark' ? 0 : 1}`, `--user-data-dir=${profile}`, `--window-size=${width},${height}`, '--dump-dom', pathToFileURL(htmlPath).href], { stdio: ['ignore', 'pipe', 'ignore'], detached: process.platform !== 'win32', windowsHide: true });
+  let out = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (d) => { out += d; });
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs && !out.includes('</html>')) await new Promise((r) => setTimeout(r, 150));
+  stop(child);
+  try { rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* a locked temp folder is harmless */ }
+  return out;
 }
