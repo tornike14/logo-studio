@@ -1,9 +1,10 @@
 // Comparison images for looking at work.
 //   node sheets.mjs field --index field/index.json --out field.png [--cols 8]
 //   node sheets.mjs sizes --svg a.svg,b.svg --out board.png [--sizes 180,120,60,40,29,16]
+//   node sheets.mjs crop --in shot.png --box x,y,width,height --out logo.png
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
-import { args, write, readJson, say, MIME, sniff, encodePng } from './lib/core.mjs';
+import { args, write, readJson, say, MIME, sniff, encodePng, rasterSize } from './lib/core.mjs';
 import { rasterise, png } from './lib/render.mjs';
 import { labelPath } from './lib/text.mjs';
 
@@ -68,4 +69,11 @@ if (mode === 'field') {
   });
   write(resolve(a.out), png(shell(W, H, body), W));
   say(JSON.stringify({ out: resolve(a.out), files: files.length, sizes }));
-} else { say('usage: node sheets.mjs field|sizes ...'); process.exit(2); }
+} else if (mode === 'crop') {
+  const buf = readFileSync(resolve(a.in));
+  const [x, y, w, h] = String(a.box).split(',').map(Number);
+  const size = rasterSize(buf);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="${x} ${y} ${w} ${h}"><image width="${size[0]}" height="${size[1]}" xlink:href="${dataUri(buf)}"/></svg>`;
+  write(resolve(a.out), png(svg, w));
+  say(JSON.stringify({ out: resolve(a.out), width: w, height: h }));
+} else { say('usage: node sheets.mjs field|sizes|crop ...'); process.exit(2); }

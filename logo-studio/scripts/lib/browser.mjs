@@ -30,7 +30,7 @@ export async function screenshot(htmlPath, out, { width = 1280, height = 2600, s
   mkdirSync(dirname(out), { recursive: true });
   rmSync(out, { force: true });
   const profile = mkdtempSync(join(tmpdir(), 'logo-studio-'));
-  const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--force-device-scale-factor=1', `--user-data-dir=${profile}`, `--blink-settings=preferredColorScheme=${scheme === 'dark' ? 0 : 1}`, `--window-size=${width},${height}`, `--screenshot=${out}`, pathToFileURL(htmlPath).href], { stdio: 'ignore', detached: process.platform !== 'win32', windowsHide: true });
+  const child = spawn(browser, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--force-device-scale-factor=1', `--user-data-dir=${profile}`, `--blink-settings=preferredColorScheme=${scheme === 'dark' ? 0 : 1}`, `--window-size=${width},${height}`, `--screenshot=${out}`, /^https?:/.test(htmlPath) ? htmlPath : pathToFileURL(htmlPath).href], { stdio: 'ignore', detached: process.platform !== 'win32', windowsHide: true });
   let failed = null;
   child.on('error', (e) => { failed = e.message; });
   const started = Date.now();
