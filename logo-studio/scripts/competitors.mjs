@@ -203,6 +203,8 @@ async function importImage(entry) {
   if (!r.ok) throw Object.assign(new Error('http'), { code: `http-${r.status}` });
   const item = store(Buffer.from(await r.arrayBuffer()), `image-${safeName(entry.name)}`, { name: entry.name, source: 'direct link', sourceUrl: entry.url, kind: entry.kind || 'logo', evidence: 'fetched' });
   if (!item) throw Object.assign(new Error('unreadable'), { code: 'unreadable-image' });
+  // A square image is an avatar or icon, and fills its tile.
+  if (!entry.kind && item.width && item.width === item.height) item.kind = 'icon';
   push(item);
   if (entry.replaces) state.done[entry.replaces] = 'ok';
 }

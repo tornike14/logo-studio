@@ -81,7 +81,7 @@ if (p.wordmark && !preview) {
   const darkGroundShare = 0.299 * gr + 0.587 * gg + 0.114 * gb < 128;
   if (darkGroundShare && !p.wordmarkDark) warnings.push('The ground is dark, so the share image needs wordmarkDark, or the word will not show.');
   const ogScale = Math.min(960 / W, 300 / H);
-  if (surfaces.includes('website')) save('web/og-image.png', opaquePng(doc(1200, 630, place(p.lockups === false ? doc(Math.ceil(W), H, place(darkGroundShare ? wordDark : word, H + gap, (H - wH) / 2, wW, wH)) : lockup(figure, darkGroundShare ? wordDark : word), (1200 - W * ogScale) / 2, (630 - H * ogScale) / 2, W * ogScale, H * ogScale), p.ground), 1200, p.ground));
+  if (surfaces.includes('website')) save('web/og-image.png', opaquePng(doc(1200, 630, (p.lockups === false ? (() => { const s = Math.min(900 / wW, 220 / wH); return place(darkGroundShare ? wordDark : word, (1200 - wW * s) / 2, (630 - wH * s) / 2, wW * s, wH * s); })() : place(lockup(figure, darkGroundShare ? wordDark : word), (1200 - W * ogScale) / 2, (630 - H * ogScale) / 2, W * ogScale, H * ogScale)), p.ground), 1200, p.ground));
 } else if (surfaces.includes('website') && !p.wordmark) save('web/og-image.png', opaquePng(doc(1200, 630, place(figure, 300, 15, 600, 600), p.ground), 1200, p.ground));
 
 if (surfaces.includes('app') || surfaces.includes('ios-preview')) {
@@ -131,10 +131,27 @@ if (surfaces.includes('website')) {
 }
 if (surfaces.includes('print') || surfaces.includes('sign')) {
   // Vector art for a sign maker, plus a large image for proofs. CMYK and PDF come from the print shop's software.
-  const art = p.wordmark ? text(p.wordmark) : null;
-  if (art) { const [, , ww, wh] = viewBox(art); const H = 240, wH = 96, wW = (ww / wh) * wH, gap = 56, W = Math.ceil(H + gap + wW); save('print/sign-on-ground.svg', doc(W + 120, H + 120, place(figureOnLight, 60, 60, H, H) + place(art, 60 + H + gap, 60 + (H - wH) / 2, wW, wH), p.ground)); save('print/sign-proof.png', opaquePng(doc(W + 120, H + 120, place(figureOnLight, 60, 60, H, H) + place(art, 60 + H + gap, 60 + (H - wH) / 2, wW, wH), p.ground), 4000, p.ground)); }
+  // signArt is a drawn sign layout. Without one, the figure and word are paired on the ground.
+  if (p.signArt) {
+    const art = text(p.signArt);
+    const [, , sw] = viewBox(art);
+    save('print/sign.svg', art + '\n');
+    save('print/sign-proof.png', opaquePng(art, Math.max(4000, sw), p.ground));
+  } else if (p.wordmark) {
+    const [gr, gg, gb] = hexRgb(p.ground);
+    const dark = 0.299 * gr + 0.587 * gg + 0.114 * gb < 128;
+    const art = text(dark && p.wordmarkDark ? p.wordmarkDark : p.wordmark);
+    const fig = dark ? figure : figureOnLight;
+    const [, , ww, wh] = viewBox(art);
+    const H = 240, wH = 96, wW = (ww / wh) * wH, gap = 56, W = Math.ceil(H + gap + wW);
+    const sign = doc(W + 120, H + 120, place(fig, 60, 60, H, H) + place(art, 60 + H + gap, 60 + (H - wH) / 2, wW, wH), p.ground);
+    save('print/sign-on-ground.svg', sign);
+    save('print/sign-proof.png', opaquePng(sign, 4000, p.ground));
+  }
   save('print/mark-on-ground.svg', master);
   save('print/mark-proof.png', opaquePng(master, 3000, p.ground));
 }
+// Extra drawn art, such as a second-script wordmark or a stacked sign layout, travels with the pack.
+for (const extra of p.extraSources || []) save(`source/${extra.replace(/^.*[\\/]/, '')}`, readFileSync(resolve(base, extra)));
 writeJson(file('manifest.json'), { brand: p.brand, made: new Date().toISOString().slice(0, 10), files: made });
 say(JSON.stringify({ out, files: made.length, warnings, note: surfaces.includes('app') ? 'Run verify-ios.mjs on a Mac with Xcode to check AppIcon.icon. Elsewhere it is unverified, and the PNGs are the safe choice.' : undefined }, null, 2));

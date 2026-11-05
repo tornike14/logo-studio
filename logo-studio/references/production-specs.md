@@ -36,6 +36,7 @@ Required: `brand`, `figure`, `ground`. Everything else improves the result.
 - `figureMono` is white art. Opacity can separate its parts. Without it, a flat silhouette is used.
 - `faviconSvg` is a simplified mark for 16 px, when the full mark is too detailed.
 - `surfaces` can hold `app`, `website` and `print`. `print` adds a `print/` folder with vector art and large proofs. CMYK and PDF files come from the print shop.
+- `signArt` is your own drawn sign layout, used in place of the automatic pairing. `extraSources` is a list of extra art files, such as a second-script wordmark, copied into `source/`.
 - `iosLayers` splits the mark for Liquid Glass, back to front. Layers must be filled shapes: a stroke with a tint fill closes up its holes. `front: true` puts a layer in its own group, so it catches light separately. Each layer is a full 1024 by 1024 SVG holding one part. Without layers, the figure is one layer.
 - `fillTinted` matters: tinted and clear icons are made from brightness, so the most important part must be the brightest. Check this in the renders.
 
