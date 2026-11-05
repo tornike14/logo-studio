@@ -70,6 +70,55 @@ await test('browser screenshot, if a browser exists', async () => {
   must(rasterSize(readFileSync(join(dir, 'page shot.png')))[0] === 400, 'wrong width');
   return `${Math.round(r.ms / 100) / 10} s`;
 });
+await test('builds and checks a page, and catches a bad one', () => {
+  const b = join(dir, 'page');
+  write(join(b, 'mark.svg'), mark);
+  const items = Array.from({ length: 26 }, (_, i) => ({ name: `Rival ${i}`, file: 'logos/a.svg', kind: 'icon', quality: 'good' }));
+  write(join(b, 'field', 'logos', 'a.svg'), mark);
+  write(join(b, 'field', 'index.json'), JSON.stringify({ items }));
+  const names = items.map((i) => i.name);
+  const dark = { ground: '#141310', surface: '#1F1D19', ink: '#F2EEE8', inkSoft: '#A39E96', hair: '#2E2B26', accent: '#8EA5FF', warm: '#FF9A8B', wash: '#222A47' };
+  const content = { schema: 1, brand: { name: 'Sample', surface: 'both', shape: 'icon', hasCurrentLogo: false }, page: { title: 'Sample Mark' }, theme: { ground: '#F6F1EA', surface: '#FFFFFF', ink: '#20222B', inkSoft: '#6B6873', hair: '#E4DDD2', accent: '#3657E0', warm: '#FF8A7A', wash: '#ECEFFE', dark }, assets: { m: { path: 'mark.svg', evidence: 'rendered' } }, sources: [{ id: 's', label: 'Source', url: 'https://example.com' }], sections: [
+    { id: 'hero', mark: 'm', alt: 'Mark', eyebrow: 'Sample', title: 'A title', lede: 'Looked at {count} logos.', verdict: ['**One** point', 'Two'] },
+    { id: 'field', title: 'Field', index: 'field/index.json', groups: [{ title: 'A', note: 'n', items: names.slice(0, 9) }, { title: 'B', note: 'n', items: names.slice(9, 18) }, { title: 'C', note: 'n', items: names.slice(18) }] },
+    { id: 'gap', title: 'Gap', findings: [{ title: 'F', text: 'T', sources: ['s'] }], closest: [{ name: 'Rival 1', why: 'Why' }] },
+    { id: 'idea', title: 'Idea', paragraphs: ['P'], principles: [{ title: 'A', text: 'a' }, { title: 'B', text: 'b' }, { title: 'C', text: 'c' }] },
+    { id: 'construction', title: 'C', drawing: 'm', rows: [{ label: 'L', value: '[#123456] v' }] },
+    { id: 'sizes', title: 'S', asset: 'm', sizes: [120, 29] },
+    { id: 'appearances', title: 'A', items: [{ asset: 'm', title: 'Light' }] },
+    { id: 'context', title: 'C', scenes: [{ type: 'browser', ours: 'm', title: 'T', caption: 'C', others: names.slice(0, 3) }, { type: 'phone', ours: 'm', title: 'T', caption: 'C', others: names.slice(0, 7) }, { type: 'avatars', ours: 'm', title: 'T', caption: 'C', others: names.slice(0, 4) }, { type: 'sign', ours: 'm', title: 'T', caption: 'C', others: [] }] },
+    { id: 'system', omitReason: 'One mark only' },
+    { id: 'motion', omitReason: 'Not needed' },
+    { id: 'alternatives', title: 'A', items: [{ asset: 'm', title: 'X', note: 'n' }, { asset: 'm', title: 'Y', note: 'n' }] },
+    { id: 'next', todo: ['T'], unverified: ['U'] },
+    { id: 'sources', notes: ['N'] }] };
+  const run = (script, ...x) => spawnSync(process.execPath, [join(here, script), ...x], { encoding: 'utf8' });
+  write(join(b, 'content.json'), JSON.stringify(content));
+  const built = run('build-page.mjs', join(b, 'content.json'), '--out', join(b, 'page.html'));
+  must(built.status === 0, (built.stderr || built.stdout).slice(0, 400));
+  const ok = run('check-page.mjs', join(b, 'content.json'), '--page', join(b, 'page.html'));
+  must(ok.status === 0, ok.stdout.slice(0, 500));
+  const html = readFileSync(join(b, 'page.html'), 'utf8');
+  must(html.includes('Looked at 26 logos.') && html.includes('<b>One</b>'), 'count or bold missing');
+  content.sections = content.sections.filter((x) => x.id !== 'idea');
+  content.sections.find((x) => x.id === 'gap').findings[0] = { title: 'F', text: 'T' };
+  write(join(b, 'bad.json'), JSON.stringify(content));
+  const bad = run('check-page.mjs', join(b, 'bad.json'));
+  must(bad.status === 1 && /idea/.test(bad.stdout) && /needs sources/.test(bad.stdout), 'bad page passed');
+});
+await test('exports the full pack', () => {
+  const b = join(dir, 'pack');
+  write(join(b, 'figure.svg'), mark);
+  write(join(b, 'word.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120"><rect width="600" height="120" fill="#222"/></svg>');
+  write(join(b, 'pack.json'), JSON.stringify({ brand: 'Sample', figure: 'figure.svg', wordmark: 'word.svg', ground: '#F6F1EA', surfaces: ['app', 'website'] }));
+  const r = spawnSync(process.execPath, [join(here, 'export-pack.mjs'), join(b, 'pack.json')], { encoding: 'utf8' });
+  must(r.status === 0, (r.stderr || r.stdout).slice(0, 400));
+  const out = join(b, 'logo-pack');
+  for (const f of ['web/favicon.ico', 'web/og-image.png', 'web/icon-512-maskable.png', 'app/ios/icon-1024.png', 'app/android/foreground.png', 'app/ios/AppIcon.icon/icon.json', 'source/lockup-horizontal.svg']) must(existsSync(join(out, f)), `missing ${f}`);
+  must(readFileSync(join(out, 'app/ios/icon-1024.png'))[25] === 2, 'App Store icon has alpha');
+  const og = rasterSize(readFileSync(join(out, 'web/og-image.png')));
+  must(og[0] === 1200 && og[1] === 630, `share image is ${og}`);
+});
 if (a.network) {
   await test('collects competitors from three sources', async () => {
     const plan = join(dir, 'plan.json');
