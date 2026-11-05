@@ -33,6 +33,7 @@ Any image that would vanish in dark mode needs a partner: `assetDark` in `sizes`
 - `evidence`: `rendered` for art you made, `fetched` for downloaded images, `user-supplied`, or `approximated` for a preview of how a system would show it. Label approximations in the caption too.
 - `theme` comes from the brand's colours. Keep the ground quiet, so the logos stand out. The check tests the contrast of both themes.
 - `theme.font` is `rounded`, `sans` or `serif` for the page headings. Pick what suits the brand.
+- If the icon's ground is close to `surface` in either theme, its tile vanishes on the page, so choose a surface that sets it apart.
 - `theme.plate` (light and dark) is the background behind competitor logos. The default mid grey keeps black and white logos visible.
 
 ## Sections
@@ -75,7 +76,7 @@ All thirteen appear in `sections`, in any order. The page always shows them in t
 - `handoff`: needs `class="out"` on shapes that leave, `class="hero-layer"` on the one that stays, and `heroTo: { "x", "y", "scale" }`.
 - `draw`: traces any stroke with `class="draw"` and `pathLength="1"`.
 - `custom`: the SVG holds its own `<style>`, using `.stage.go` for the played state.
-Check the played state with `shot.mjs --go`.
+Check the played state with `shot.mjs --go`, which jumps to the end of the motion. Keep motion art's coordinates in the path data, not in `transform` attributes, so CSS motion does not shift them.
 
 ### alternatives
 `title`, `items` of `{ "asset", "title", "note" }`. At least two real concepts from your rounds, each with the honest reason it lost. Never make one up after the fact.

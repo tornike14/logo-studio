@@ -30,6 +30,8 @@ Paths are relative to `pack.json`. SVGs should be square, 1024 by 1024 viewBox, 
 Required: `brand`, `figure`, `ground`. Everything else improves the result.
 
 - `figure` is the mark on a transparent background, sized to fill its square as it should sit on the icon.
+- `lockups: false` skips the lockups, for when the icon is a letter of the word and the pair would repeat it.
+- `wordmarkDark` is required when `ground` is dark, because the share image needs a light word.
 - `figureOnLight` is for lockups on white, when `figure` is drawn for a dark ground and would vanish.
 - `figureMono` is white art. Opacity can separate its parts. Without it, a flat silhouette is used.
 - `faviconSvg` is a simplified mark for 16 px, when the full mark is too detailed.
@@ -41,7 +43,7 @@ A wide logo with no icon still needs a square `figure`, such as an initial or a 
 
 Text in a logo must be outlined. Run `wordmark.mjs --text "Name" --font gf:"Noto Sans Georgian":700 --out wordmark.svg --color "#111111"`. Non-English text goes in a UTF-8 file, through `--text-file name.txt`. Most Google Fonts use the Open Font License, which allows logo use, but check the font's licence. For a paid or custom font, pass a local file only if the user holds the licence. The tool stops with a clear message if letters are missing.
 
-`--glyphs letters.json` also writes each letter's path and position, for optical kerning, changing a letter or measuring one to build on it.
+`--glyphs letters.json` also writes each letter's path and position, for optical kerning, changing a letter or measuring one to build on it. Each `d` is already placed at its `x`, so do not add `x` again. Add `offsetX` and `offsetY` to line up with the wordmark.
 
 Arabic, Hebrew, Devanagari and other connected scripts need shaping that this tool does not do. Look at the result closely, and tell the user if it is wrong.
 

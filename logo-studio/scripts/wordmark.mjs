@@ -18,7 +18,7 @@ if (a.list) {
   const items = await r.json();
   const files = items.filter((f) => /\.(ttf|otf)$/i.test(f.name)).map((f) => f.name);
   say(JSON.stringify({ family: a.list, files, hasStaticFolder: items.some((f) => f.name === 'static') }, null, 2));
-  if (files.some((f) => f.includes('['))) say('Files with [wght] are variable fonts. Only their default weight can be drawn. Look in the static folder or another family for other weights.');
+  if (files.some((f) => f.includes('['))) say('Files with [wght] are variable fonts. Use gf:"Family Name":700 to get a real weight.');
   process.exit(0);
 }
 if (!a.text || !a.font || !a.out) { say('usage: node wordmark.mjs --text "Name" --font <file or gf:"Family Name":700> --out wordmark.svg'); process.exit(2); }
@@ -46,9 +46,10 @@ if (file.startsWith('gf:')) {
 }
 let font;
 try { font = parseFont(readFileSync(resolve(file))); } catch (e) { say(`This font could not be read: ${e.message}. Choose another font.`); process.exit(1); }
-if (font.tables.fvar) say('NOTE: this is a variable font, so only its default weight is drawn.');
+if (font.tables.fvar) say('NOTE: this file is a variable font, so only its default weight is drawn. Use gf:"Family Name":700 for other weights.');
 const size = 200;
-const o = outline(font, String(a.text), size, Number(a.tracking || 0));
+let o;
+try { o = outline(font, String(a.text), size, Number(a.tracking || 0)); } catch (e) { say(`This font could not draw the text (${e.message.slice(0, 70)}). Choose another font.`); process.exit(1); }
 if (o.missing.length) { say(`This font has no glyph for: ${[...new Set(o.missing)].join(' ')}. Choose a font that covers these letters.`); process.exit(1); }
 // Connected scripts need shaping, which this tool does not do.
 if (/[֐-ࣿऀ-෿฀-࿿]/.test(a.text)) say('WARNING: this script needs text shaping, so letters may not connect correctly. Check the result by eye.');

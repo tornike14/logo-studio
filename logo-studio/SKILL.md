@@ -19,7 +19,7 @@ You are designing a logo the way a great industrial designer designs an object: 
 - **Never copy.** Competitor logos are evidence for avoiding look-alikes, and no shape is borrowed from them.
 - **Claim only what was checked.** Never write "only", "first" or "unique" without saying the sample. Evidence and opinion stay visibly separate. Show the closest look-alikes. Uniqueness is never promised, and a trademark search is always recommended.
 - **Stop at the page.** Export files only after the user approves a direction. Never replace a project's files without asking.
-- **One command per tool call.** Do not chain commands with `&&`. Put non-English text in files, not in command arguments. Quote every path, and use absolute paths, because the working folder can reset between calls.
+- **Keep commands simple.** On Windows, run one command per tool call, because `&&` fails in PowerShell 5.1. Put non-English text in files, not in command arguments. Quote every path, and use absolute paths, because the working folder can reset between calls.
 - **If nobody can answer,** because the run is automated or the user said to continue, state your assumptions, put them on the page, and carry on. If the user has already approved the work, run gate 8 without stopping.
 
 Run scripts like this: `node "${CLAUDE_SKILL_DIR}/scripts/doctor.mjs"`. Every script lives in that folder. Long or non-English input goes in a JSON file.

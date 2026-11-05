@@ -67,14 +67,21 @@ if (p.wordmark && !preview) {
   if (p.wordmarkDark) save('source/wordmark-dark.svg', wordDark + '\n');
   const H = 240, wH = 96, wW = (ww / wh) * wH, gap = 56, W = H + gap + wW;
   const lockup = (fig, wm, bg) => doc(Math.ceil(W), H, place(fig, 0, 0, H, H) + place(wm, H + gap, (H - wH) / 2, wW, wH), bg);
+  // Set lockups to false when the icon is a letter of the word, since the pair would repeat that letter.
+  if (p.lockups !== false) {
   save('source/lockup-horizontal.svg', lockup(figureOnLight, word));
   save('source/lockup-horizontal-dark.svg', lockup(darkFigure, wordDark));
   const SW = Math.ceil(Math.max(wW, 360)), SH = 360 + 48 + wH;
   save('source/lockup-stacked.svg', doc(SW, SH, place(figureOnLight, (SW - 360) / 2, 0, 360, 360) + place(word, (SW - wW) / 2, 408, wW, wH)));
   save('source/lockup-horizontal.png', png(lockup(figureOnLight, word), 1600));
+  }
   // The share image keeps the lockup inside generous margins, whatever the length of the name.
+  // On a dark ground the word has to be the light version, or it vanishes.
+  const [gr, gg, gb] = hexRgb(p.ground);
+  const darkGroundShare = 0.299 * gr + 0.587 * gg + 0.114 * gb < 128;
+  if (darkGroundShare && !p.wordmarkDark) warnings.push('The ground is dark, so the share image needs wordmarkDark, or the word will not show.');
   const ogScale = Math.min(960 / W, 300 / H);
-  if (surfaces.includes('website')) save('web/og-image.png', opaquePng(doc(1200, 630, place(lockup(figure, word, null), (1200 - W * ogScale) / 2, (630 - H * ogScale) / 2, W * ogScale, H * ogScale), p.ground), 1200, p.ground));
+  if (surfaces.includes('website')) save('web/og-image.png', opaquePng(doc(1200, 630, place(p.lockups === false ? doc(Math.ceil(W), H, place(darkGroundShare ? wordDark : word, H + gap, (H - wH) / 2, wW, wH)) : lockup(figure, darkGroundShare ? wordDark : word), (1200 - W * ogScale) / 2, (630 - H * ogScale) / 2, W * ogScale, H * ogScale), p.ground), 1200, p.ground));
 } else if (surfaces.includes('website') && !p.wordmark) save('web/og-image.png', opaquePng(doc(1200, 630, place(figure, 300, 15, 600, 600), p.ground), 1200, p.ground));
 
 if (surfaces.includes('app') || surfaces.includes('ios-preview')) {

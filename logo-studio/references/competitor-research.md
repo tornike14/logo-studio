@@ -41,7 +41,7 @@ Run `sheets.mjs field --index logo-work/field/index.json --out logo-work/field.p
 - Is it the company's logo, or an interface icon, a product photo or someone else's mark?
 - `checkTheseMatches` lists searches that may have returned a different app. `siteTitles` shows what each site calls itself, which reveals a guessed address belonging to another company. `sameBrandTwice` lists brands found through more than one source. Keep the best one and exclude the rest.
 - A WebP image shows as text on the sheet, though the page displays it.
-- A red dot means a small image. Try the `alternates`. If those fail, screenshot the live site with `shot.mjs https://example.com --out header.png --width 1280 --height 240`, cut out the logo with `sheets.mjs crop`, add it through `files`, or ask the user.
+- A red dot means a small image. Try the `alternates`. If those fail, screenshot the live site with `shot.mjs https://example.com --out header.png --width 1280 --height 240 --scale 3`, cut out the logo with `sheets.mjs crop`, add it through `files`, or ask the user.
 - `note` says when a site blocked reading. That logo must be checked by hand.
 - Fix a wrong entry by editing `index.json`: change `file` to an alternate, or delete the item.
 

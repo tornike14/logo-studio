@@ -236,7 +236,8 @@ state.items = state.items.filter((i) => !excluded.has(i.name) && !excluded.has(i
 for (const [from, to] of Object.entries(plan.rename || {})) for (const i of state.items) if (i.name === from || i.fullName === from) i.name = to;
 save();
 const SOFT = new Set(['already-collected']);
-const failed = Object.entries(state.done).filter(([, v]) => v !== 'ok' && !SOFT.has(v)).map(([k, v]) => `${k} (${v})`);
+const current = new Set(jobs.map(([key]) => key));
+const failed = Object.entries(state.done).filter(([k, v]) => v !== 'ok' && !SOFT.has(v) && current.has(k)).map(([k, v]) => `${k} (${v})`);
 const left = jobs.filter(([key]) => !state.done[key]).length;
 const seen = {};
 for (const i of state.items) (seen[norm(i.name.replace(/\s*\(.*\)$/, ''))] ||= []).push(i.name);

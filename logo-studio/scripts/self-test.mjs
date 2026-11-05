@@ -47,6 +47,18 @@ await test('outlines a wordmark and spots missing letters', () => {
   const o = outline(font, 'Harbor 中', 120);
   must(o.d.length > 100, 'empty path'); must(o.missing.length === 1, 'missing glyph not reported');
 });
+await test('soft edges keep their true colour', () => {
+  const r = rasterise('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4.3" fill="#F4ECE0"/></svg>', 10);
+  for (let i = 0; i < r.pixels.length; i += 4) if (r.pixels[i + 3] > 24 && r.pixels[i + 3] < 255) must(r.pixels[i] > 225, `dark edge: ${r.pixels[i]}`);
+});
+await test('letter outlines never hold invalid numbers', () => {
+  const font = parseFont(readFileSync(join(here, '..', 'vendor', 'fonts', 'Poppins-Medium.ttf')));
+  for (const word of ['PawPath', 'ledgerline', 'Illinois Mmw']) {
+    const o = outline(font, word, 200);
+    must(!/NaN|Infinity|undefined/.test(o.d), `bad path for ${word}`);
+    must(!/NaN/.test(labelPath(word, 12.34, 56.78, 13)), `bad label for ${word}`);
+  }
+});
 await test('safe file names', () => { must(safeName('CON') === 'con-x', 'reserved name'); must(safeName('Café: "A"/B?') === 'cafe-a-b', safeName('Café: "A"/B?')); });
 await test('colour parsing and ASCII output', () => { must(hexRgb('#fff')[0] === 255, 'hex'); must(ascii('中') === '\\u4e2d', 'ascii'); });
 await test('field and size sheets', () => {

@@ -38,7 +38,19 @@ export function labelPath(text, x, y, size, anchor = 'start') {
 
 function getPath(font, text, x, y, size, options) {
   // Some fonts use substitution tables opentype cannot read. Text still draws without those features.
-  try { return font.getPath(text, x, y, size, options); } catch { return font.getPath(text, x, y, size, { ...options, features: {} }); }
+  try { return font.getPath(text, x, y, size, options); } catch {
+    try { return font.getPath(text, x, y, size, { ...options, features: { liga: false, rlig: false } }); } catch {
+      // Last resort: draw each letter by itself, without the font's substitutions.
+      const merged = [];
+      let left = x;
+      for (const char of text) {
+        const glyph = font.charToGlyph(char);
+        merged.push(...glyph.getPath(left, y, size).commands);
+        left += (glyph.advanceWidth * size) / font.unitsPerEm + (options.letterSpacing || 0) * size;
+      }
+      return { commands: merged, getBoundingBox() { const xs = [], ys = []; for (const c of merged) if (c.type !== 'Z') { xs.push(c.x); ys.push(c.y); } return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) }; } };
+    }
+  }
 }
 export function outline(font, text, size, letterSpacing = 0) {
   const path = getPath(font, text, 0, 0, size, { letterSpacing: letterSpacing / 1000 });

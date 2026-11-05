@@ -34,12 +34,14 @@ try {
     const h = Number(a.height || 900);
     const src = remote ? page : pathToFileURL(page).href;
     write(frame, frameHtml(src, h, 0));
-    const r = await screenshot(remote && width >= 520 ? page : frame, out, { width: windowWidth, height: h, scheme, scale, waitMs: a.go ? 3000 : 0 });
+    const r = await screenshot(remote && width >= 520 ? page : frame, out, { width: windowWidth, height: h, scheme, scale, waitMs: a.go ? 1000 : 0 });
     if (r.ok && width < 520) crop(out, width, h);
     say(JSON.stringify({ out, width, scheme, ...r }));
     if (!r.ok) process.exitCode = 1;
   } else {
-    const inject = `<script>addEventListener('load',()=>{parent.postMessage(document.documentElement.scrollHeight,'*');${a.go ? "document.getElementById('stage')?.classList.add('go');" : ''}});</script>`;
+    // A screenshot cannot wait for an animation, so --go jumps straight to its end state.
+    const ending = a.go ? "<style>.stage *{transition-duration:0s!important;transition-delay:0s!important;animation-duration:0s!important;animation-delay:0s!important}</style>" : '';
+    const inject = `${ending}<script>addEventListener('load',()=>{parent.postMessage(document.documentElement.scrollHeight,'*');${a.go ? "document.getElementById('stage')?.classList.add('go');" : ''}});</script>`;
     write(copy, readFileSync(page, 'utf8') + inject);
     const src = pathToFileURL(copy).href;
     write(frame, frameHtml(src, 900, 0, true));
@@ -50,7 +52,7 @@ try {
     for (let i = 0, top = 0; top < total; i++, top += slice) {
       const h = Math.min(slice, total - top), file = out.replace(/\.png$/i, `-${i + 1}.png`);
       write(frame, frameHtml(src, total, top));
-      const r = await screenshot(frame, file, { width: windowWidth, height: h, scheme, scale, waitMs: a.go ? 3000 : 0 });
+      const r = await screenshot(frame, file, { width: windowWidth, height: h, scheme, scale, waitMs: a.go ? 1000 : 0 });
       if (!r.ok) throw new Error(`screenshot failed: ${r.reason}`);
       if (width < 520) crop(file, width, h);
       files.push(file);
