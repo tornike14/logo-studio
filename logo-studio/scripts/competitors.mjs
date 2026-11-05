@@ -26,6 +26,13 @@ const UA = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKi
 const reason = (e) => e?.cause?.code || e?.code || e?.name || String(e);
 const save = () => writeJson(indexPath, state);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const decode = (t) => t.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+// Interface icons (menus, arrows, ticks) sit in the same headers as logos, and they are only a few short shapes.
+function logoLike(svg) {
+  if (/<use\b/i.test(svg)) return false;
+  if (/menu|hamburger|chevron|arrow|close|search|cart|caret|toggle|icon-/i.test(svg.slice(0, 300))) return false;
+  return [...svg.matchAll(/\sd="([^"]+)"/g)].reduce((n, m) => n + m[1].length, 0) >= 400;
+}
 const remainingMs = () => budgetMs - (Date.now() - started);
 
 async function get(url, timeout = 15000) {
@@ -121,9 +128,10 @@ function siteCandidates(html, base) {
     const src = attr(m[0], 'src') || attr(m[0], 'data-src') || attr(m[0], 'srcset')?.split(/[\s,]/)[0];
     if (src && !src.startsWith('data:') && /logo|brand/i.test(m[0])) list.push({ url: abs(src), kind: 'logo', score: 3000 });
   }
-  const homeLink = header.match(/<a\b[^>]*href=["'](?:\/|https?:\/\/[^"'/]+\/?)["'][^>]*>[\s\S]*?(<svg\b[\s\S]*?<\/svg>)/i)?.[1];
+  // Only a home link whose content is the SVG itself counts, or the first menu icon would pass as a logo.
+  const homeLink = header.match(/<a\b[^>]*href=["'](?:\/|https?:\/\/[^"'/]+\/?)["'][^>]*>\s*(?:<(?:span|div|h1|picture)\b[^>]*>\s*)*(<svg\b[\s\S]*?<\/svg>)/i)?.[1];
   const namedSvg = [...header.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)].map((m) => m[0]).find((s) => /logo|brand/i.test(s.slice(0, 500)));
-  for (const svg of [namedSvg, homeLink]) if (svg && !/<use\b/i.test(svg)) list.push({ inline: svg, kind: 'logo', score: 3500 });
+  for (const svg of [namedSvg, homeLink]) if (svg && logoLike(svg)) list.push({ inline: svg, kind: 'logo', score: 3500 });
   const ld = html.match(/"logo"\s*:\s*(?:\{[^}]*?"url"\s*:\s*)?"(https?:[^"]+)"/i)?.[1];
   if (ld) list.push({ url: abs(ld.replace(/\\\//g, '/')), kind: 'logo', score: 2500 });
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
@@ -141,8 +149,11 @@ async function site(domain) {
   const page = await get(url);
   const html = await page.text();
   const host = new URL(page.url).hostname.replace(/^www\./, '');
-  const name = html.match(/property=["']og:site_name["'][^>]*content=["']([^"']+)/i)?.[1] || (html.match(/<title[^>]*>([^<]+)/i)?.[1] || host).split(/\s+[|–—-]\s+/)[0].trim();
-  const meta = { name: name.slice(0, 40), source: 'website', sourceUrl: page.url };
+  const title = decode(html.match(/property=["']og:site_name["'][^>]*content=["']([^"']+)/i)?.[1] || html.match(/<title[^>]*>([^<]+)/i)?.[1] || '');
+  const blocked = !page.ok || /attention required|just a moment|access denied|forbidden|are you (a )?human|security check/i.test(title);
+  const fromHost = host.split('.')[0].replace(/^./, (c) => c.toUpperCase());
+  const name = blocked || !title ? fromHost : title.split(/\s+[|–—:-]\s+/)[0].trim();
+  const meta = { name: name.slice(0, 40), source: 'website', sourceUrl: page.url, ...(blocked ? { note: 'site blocked automated reading, check by hand' } : {}) };
   const found = [];
   const seen = new Set();
   for (const c of siteCandidates(html, page.url)) {
