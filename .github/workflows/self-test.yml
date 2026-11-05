@@ -31,3 +31,47 @@ jobs:
           $PSVersionTable.PSVersion
           node "logo-studio/scripts/doctor.mjs"
           node "logo-studio/scripts/self-test.mjs" --network
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: zip -r -X logo-studio.zip logo-studio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logo-studio-zip
+          path: logo-studio.zip
+  install-on-windows:
+    needs: package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: logo-studio-zip
+      - name: Follow the README on Windows PowerShell
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills"
+          tar -xf logo-studio.zip -C "$env:USERPROFILE\.claude\skills"
+          if (-not (Test-Path "$env:USERPROFILE\.claude\skills\logo-studio\SKILL.md")) { exit 1 }
+          node "$env:USERPROFILE\.claude\skills\logo-studio\scripts\doctor.mjs"
+          node "$env:USERPROFILE\.claude\skills\logo-studio\scripts\self-test.mjs" --network
+  install-on-mac:
+    needs: package
+    runs-on: macos-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: logo-studio-zip
+      - name: Follow the README on a Mac
+        run: |
+          mkdir -p ~/.claude/skills
+          unzip logo-studio.zip -d ~/.claude/skills
+          test -f ~/.claude/skills/logo-studio/SKILL.md
+          node ~/.claude/skills/logo-studio/scripts/doctor.mjs
+          node ~/.claude/skills/logo-studio/scripts/self-test.mjs --network
