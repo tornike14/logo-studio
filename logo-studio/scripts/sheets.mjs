@@ -6,12 +6,18 @@
 // sizes takes --wide for wordmarks (sizes become widths, default 320,200,120,80), and --plate "#141310" for a background.
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
-import { args, write, readJson, say, MIME, sniff, encodePng, rasterSize } from './lib/core.mjs';
+import { args, needFile, needs, write, readJson, say, MIME, sniff, encodePng, rasterSize } from './lib/core.mjs';
 import { rasterise, png } from './lib/render.mjs';
 import { labelPath } from './lib/text.mjs';
 
 const a = args();
 const mode = a._[0];
+const usage = 'node sheets.mjs field|sizes|crop|colours ...  (see the top of sheets.mjs for each mode)';
+needs(['field', 'sizes', 'crop', 'colours'].includes(mode), usage);
+if (mode === 'field' || mode === 'colours') needFile(a.index, usage);
+if (mode === 'sizes') needs(typeof a.svg === 'string', usage);
+if (mode === 'crop') { needFile(a.in, usage); needs(typeof a.box === 'string', usage); }
+if (mode !== 'colours') needs(typeof a.out === 'string', usage);
 const dataUri = (buf) => `data:${MIME[sniff(buf)]};base64,${buf.toString('base64')}`;
 const shell = (w, h, body) => `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}</svg>`;
 
@@ -117,4 +123,4 @@ if (mode === 'field') {
     (examples[colour] ||= []).push(item.name);
   }
   say(JSON.stringify({ note: 'The strongest colour in each logo. A rough guide: check it by eye.', counts: Object.fromEntries(Object.entries(totals).sort((p, q) => q[1] - p[1])), examples }, null, 2));
-} else { say('usage: node sheets.mjs field|sizes|crop|colours ...'); process.exit(2); }
+}

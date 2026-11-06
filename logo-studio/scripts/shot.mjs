@@ -3,17 +3,25 @@
 // The whole page is captured as slices: shots/desktop-1.png, -2.png and so on. Look at all of them.
 //   --go plays the page's motion first. --scale 3 gives a sharper image for cropping a logo.
 //   --height 900 takes one image of that height from the top. A web address needs --height.
+//   A web address obeys that site's robots.txt. --own-site skips the check for the user's own site.
 import { readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { args, encodePng, say, write } from './lib/core.mjs';
+import { args, encodePng, needFile, needs, say, write } from './lib/core.mjs';
 import { dumpDom, findBrowser, screenshot } from './lib/browser.mjs';
 import { rasterise } from './lib/render.mjs';
+import { robotsVerdict } from './lib/web.mjs';
 
 const a = args();
-const remote = /^https?:/.test(a._[0]);
-const page = remote ? a._[0] : resolve(a._[0]);
+const usage = 'node shot.mjs page.html --out shots/desktop.png --width 1280 --scheme light [--go] [--scale 2] [--height 900]';
+const remote = /^https?:/.test(a._[0] || '');
+const page = remote ? a._[0] : needFile(a._[0], usage);
+needs(typeof a.out === 'string', usage);
+if (remote && !a['own-site']) {
+  const verdict = await robotsVerdict(page);
+  if (verdict !== 'ok') { say(JSON.stringify({ ok: false, reason: verdict, note: 'This site does not allow automated reading. Ask the user for the logo, or list the site as not collected.' })); process.exit(1); }
+}
 const out = resolve(a.out);
 const width = Number(a.width || 1280), scheme = a.scheme || 'light', scale = Number(a.scale || 1);
 if (!findBrowser()) { say(JSON.stringify({ ok: false, reason: 'no-browser', note: 'The page could not be checked by eye on this computer.' })); process.exit(1); }

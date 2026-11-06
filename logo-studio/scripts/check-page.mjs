@@ -2,11 +2,13 @@
 // Reports every problem at once. It proves the page is complete and honest, not that the idea is good.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { args, readJson, say, sniff } from './lib/core.mjs';
+import { args, needFile, needs, readJson, say, sniff } from './lib/core.mjs';
 import { MIN_COMPETITORS, SECTION_ORDER, countShown, fieldPick, loadField, themeProblems } from './lib/page.mjs';
 
 const a = args();
-const path = resolve(a._[0]);
+const usage = 'node check-page.mjs content.json [--page page.html]';
+const path = needFile(a._[0], usage);
+if (a.page !== undefined) needFile(a.page, usage);
 const base = dirname(path);
 const c = readJson(path);
 const problems = [];

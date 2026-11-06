@@ -3,10 +3,10 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { args, say } from './lib/core.mjs';
+import { args, needFile, say } from './lib/core.mjs';
 
 const a = args();
-const doc = resolve(a._[0]);
+const doc = needFile(a._[0], 'node verify-ios.mjs path/to/AppIcon.icon --out renders');
 const out = resolve(a.out || 'ios-renders');
 const ictool = '/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool';
 if (process.platform !== 'darwin' || !existsSync(ictool)) { say(JSON.stringify({ verified: false, reason: 'needs a Mac with Xcode 26. This is an optional extra check.' })); process.exit(0); }

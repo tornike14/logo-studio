@@ -1,5 +1,5 @@
 // Shared helpers. No npm dependencies: everything runs on plain Node 18+ with the files in vendor/.
-import { readFileSync, writeFileSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
@@ -24,6 +24,19 @@ export function args(argv = process.argv.slice(2)) {
     else { out[key] = next; i++; }
   }
   return out;
+}
+
+// A missing argument should print how to run the tool, not a stack trace.
+export function needs(ok, usage, problem) {
+  if (ok) return;
+  if (problem) say(problem);
+  say(`usage: ${usage}`);
+  process.exit(2);
+}
+export function needFile(path, usage) {
+  needs(typeof path === 'string', usage);
+  needs(existsSync(path), usage, `file not found: ${path}`);
+  return resolve(path);
 }
 
 const RETRY = new Set(['EBUSY', 'EPERM', 'EACCES']);

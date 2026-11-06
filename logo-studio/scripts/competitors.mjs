@@ -2,19 +2,22 @@
 // again until it reports remaining 0, so a long list survives tool time limits.
 //   node competitors.mjs plan.json --out field [--budget 90] [--retry-failed]
 // plan.json: { "country": "us", "apps": ["Calm", {"term":"meditation","limit":10}, {"id":571800810}],
-//              "play": ["com.calm.android", {"term":"meditation","limit":5}],
+//              "play": ["com.calm.android"],
 //              "sites": ["calm.com"], "files": [{"name":"Rival","path":"rival.png","replaces":"site:rival.com"}],
 //              "images": [{"name":"Rival","url":"https://direct/link/to/logo.png","replaces":"site:rival.com"}],
 //              "exclude": ["Wrong App"], "rename": {"Long Store Title":"Brand"} }
 import { copyFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, extname, resolve, dirname } from 'node:path';
-import { args, readJson, writeJson, write, say, safeName, sniff, rasterSize, EXT } from './lib/core.mjs';
+import { args, needFile, needs, readJson, writeJson, write, say, safeName, sniff, rasterSize, EXT } from './lib/core.mjs';
 import { icoToPng } from './lib/ico.mjs';
-import { png, rasterise } from './lib/render.mjs';
+import { rasterise } from './lib/render.mjs';
+import { HEADERS, WEB_TEXT_NOTICE, WITHHELD, cleanSvg, robotsVerdict, webText } from './lib/web.mjs';
 
 const a = args();
 const planPath = a._[0];
-if (!planPath || !a.out) { say('usage: node competitors.mjs plan.json --out field [--budget 90] [--retry-failed]'); process.exit(2); }
+const usage = 'node competitors.mjs plan.json --out field [--budget 90] [--retry-failed]';
+needFile(planPath, usage);
+needs(typeof a.out === 'string', usage);
 const plan = readJson(planPath);
 const out = resolve(a.out);
 const budgetMs = Number(a.budget || 90) * 1000;
@@ -24,8 +27,7 @@ const country = plan.country || 'us';
 const today = new Date().toISOString().slice(0, 10);
 mkdirSync(join(out, 'logos'), { recursive: true });
 const state = existsSync(indexPath) ? readJson(indexPath) : { done: {}, items: [], appStoreAt: 0 };
-const UA = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', 'accept-language': 'en-US,en;q=0.9' };
-const reason = (e) => e?.cause?.code || e?.code || e?.name || String(e);
+const reason = (e) => (e?.name === 'TimeoutError' ? 'timeout' : String(e?.cause?.code || e?.code || e?.name || e));
 const save = () => writeJson(indexPath, state);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const decode = (t) => t.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
@@ -37,10 +39,20 @@ function logoLike(svg) {
 }
 const remainingMs = () => budgetMs - (Date.now() - started);
 
-async function get(url, timeout = 15000) {
+async function obey(url) {
+  const verdict = await robotsVerdict(url);
+  if (verdict !== 'ok') throw Object.assign(new Error(verdict), { code: verdict, obeyed: true });
+}
+// Apple's Search API is a documented service with its own limit, so `api` skips robots.txt for it. Everything else obeys it.
+async function get(url, { timeout = 15000, api = false } = {}) {
+  if (!api) await obey(url);
   for (let attempt = 0; ; attempt++) {
-    try { return await fetch(url, { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(timeout) }); } catch (e) {
-      if (attempt >= 1 || e.name === 'TimeoutError') throw e;
+    try {
+      const r = await fetch(url, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(timeout) });
+      if (!api && r.url && r.url !== url) await obey(r.url);
+      return r;
+    } catch (e) {
+      if (attempt >= 1 || e.name === 'TimeoutError' || e.obeyed) throw e;
       await sleep(600);
     }
   }
@@ -66,11 +78,6 @@ function store(buf, slug, meta) {
   // The sheets cannot draw WebP, though browsers and the page can.
   return { ...meta, file, type, width, height, quality, ...(type === 'webp' ? { note: 'WebP: blank on sheets, shown on the page' } : {}) };
 }
-function cleanSvg(s) {
-  let t = s.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '').replace(/currentColor/g, '#111111').replace(/var\(--[^,)]+,\s*([^)]+)\)/g, '$1').replace(/var\(--[^)]+\)/g, '#111111');
-  if (!/xmlns=/.test(t.slice(0, 400))) t = t.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
-  return t;
-}
 function visible(svg) {
   try {
     const r = rasterise(svg, 96);
@@ -81,11 +88,25 @@ function visible(svg) {
 }
 
 const norm = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '');
-function push(item) {
+// Every word from a site or a store passes through here before anything can read it.
+function tidy(item) {
+  const out = { ...item };
+  const fallback = item.packageId || (item.appId ? `App ${item.appId}` : item.sourceUrl ? new URL(item.sourceUrl).hostname : 'Unnamed');
+  for (const key of ['name', 'fullName', 'seller', 'genre', 'siteTitle', 'flag', 'note']) {
+    if (out[key] === undefined || out[key] === null) continue;
+    if (out[key] === WITHHELD) { out.withheld = true; continue; }
+    const t = webText(out[key], { max: key === 'name' ? 40 : 120, fallback: key === 'name' ? fallback : WITHHELD });
+    out[key] = t.text;
+    if (t.withheld) out.withheld = true;
+  }
+  return out;
+}
+function push(raw) {
+  const item = tidy(raw);
   // Pages refer to logos by name, so two different apps may not share one.
   let name = item.name;
   if (state.items.some((i) => i.name === name)) {
-    const tag = String(item.seller || item.source).split(/[\s,]/)[0];
+    const tag = item.withheld ? item.source : String(item.seller || item.source).split(/[\s,]/)[0];
     name = `${item.name} (${tag})`;
     for (let n = 2; state.items.some((i) => i.name === name); n++) name = `${item.name} (${tag} ${n})`;
   }
@@ -101,7 +122,7 @@ async function appStore(entry) {
   if (wait > 0) await sleep(wait);
   state.appStoreAt = Date.now();
   const url = id ? `https://itunes.apple.com/lookup?${new URLSearchParams({ id: String(id), country })}` : `https://itunes.apple.com/search?${new URLSearchParams({ term, entity: 'software', limit: String(limit), country })}`;
-  const r = await get(url);
+  const r = await get(url, { api: true });
   if (!r.ok) throw Object.assign(new Error('http'), { code: `http-${r.status}` });
   const { results } = await r.json();
   let added = 0;
@@ -110,32 +131,29 @@ async function appStore(entry) {
     // A name search returns the closest app even when the wanted one does not exist.
     const weak = exact && !norm(title).includes(norm(term).slice(0, 12)) && !norm(term).includes(norm(title.split(/[:\u2013\u2014-]/)[0]));
     if (state.items.some((i) => i.appId === app.trackId)) continue;
-    const img = await get(app.artworkUrl512);
-    const item = store(Buffer.from(await img.arrayBuffer()), `app-${safeName(title)}-${app.trackId}`, { name: title.split(/\s*[:\u2013\u2014]\s+|\s+[-|&]\s+/)[0].trim(), fullName: title, query: id ? `id ${id}` : term, source: 'app-store', sourceUrl: app.trackViewUrl, seller: app.sellerName, genre: app.primaryGenreName, ratings: app.userRatingCount ?? 0, appId: app.trackId, kind: 'icon', evidence: 'fetched', ...(weak ? { flag: `searched "${term}", got "${title}"` } : {}) });
+    const img = await get(app.artworkUrl512, { api: true });
+    const item = store(Buffer.from(await img.arrayBuffer()), `app-${app.trackId}`, { name: title.split(/\s*[:\u2013\u2014]\s+|\s+[-|&]\s+/)[0].trim(), fullName: title, query: id ? `id ${id}` : term, source: 'app-store', sourceUrl: app.trackViewUrl, seller: app.sellerName, genre: app.primaryGenreName, ratings: app.userRatingCount ?? 0, appId: app.trackId, kind: 'icon', evidence: 'fetched', ...(weak ? { flag: `searched "${term}", got "${title}"` } : {}) });
     if (item) { push(item); added++; }
   }
   if (!added) throw Object.assign(new Error('none'), { code: results.length ? 'already-collected' : 'no-match' });
 }
 
 async function play(entry) {
-  const text = typeof entry === 'string' ? entry : entry.term;
-  const limit = typeof entry === 'string' ? 1 : entry.limit || 8;
-  let ids = [text];
-  if (!/^[\w]+(\.[\w]+)+$/.test(text)) {
-    const page = await (await get(`https://play.google.com/store/search?q=${encodeURIComponent(text)}&c=apps&hl=en&gl=${country.toUpperCase()}`)).text();
-    ids = [...new Set([...page.matchAll(/details\?id=([\w.]+)/g)].map((m) => m[1]))].slice(0, limit);
-  }
-  for (const id of ids) {
-    if (state.items.some((i) => i.packageId === id)) continue;
-    const url = `https://play.google.com/store/apps/details?id=${id}&hl=en&gl=${country.toUpperCase()}`;
-    const h = await (await get(url)).text();
-    const m = h.match(/property="og:image" content="([^"]+)"/) || h.match(/content="([^"]+)" property="og:image"/);
-    const title = (h.match(/<title[^>]*>([^<]+)/)?.[1] || id).replace(/\s*-\s*Apps on Google Play.*/, '');
-    if (!m) continue;
-    const img = await get(m[1].replace(/&amp;/g, '&').replace(/=w\d+.*$/, '=w512'));
-    const item = store(Buffer.from(await img.arrayBuffer()), `play-${safeName(id)}`, { name: title.split(/\s*[:–—]\s+|\s+[-|]\s+/)[0], fullName: title, source: 'google-play', sourceUrl: url, packageId: id, kind: 'icon', evidence: 'fetched' });
-    if (item) push(item);
-  }
+  // Google's robots.txt forbids its search pages, so an app is reached only by its package id.
+  const id = typeof entry === 'string' ? entry : entry.id;
+  if (!/^[\w]+(\.[\w]+)+$/.test(id || '')) throw Object.assign(new Error('play-needs-package-id'), { code: 'play-needs-package-id' });
+  if (state.items.some((i) => i.packageId === id)) return;
+  const url = `https://play.google.com/store/apps/details?id=${id}&hl=en&gl=${country.toUpperCase()}`;
+  const page = await get(url);
+  if (!page.ok) throw Object.assign(new Error('http'), { code: `http-${page.status}` });
+  const h = await page.text();
+  const m = h.match(/property="og:image" content="([^"]+)"/) || h.match(/content="([^"]+)" property="og:image"/);
+  const title = (h.match(/<title[^>]*>([^<]+)/)?.[1] || id).replace(/\s*-\s*Apps on Google Play.*/, '');
+  if (!m) throw Object.assign(new Error('no-image'), { code: 'no-image' });
+  const img = await get(m[1].replace(/&amp;/g, '&').replace(/=w\d+.*$/, '=w512'));
+  const item = store(Buffer.from(await img.arrayBuffer()), `play-${safeName(id)}`, { name: title.split(/\s*[:–—]\s+|\s+[-|]\s+/)[0], fullName: title, source: 'google-play', sourceUrl: url, packageId: id, kind: 'icon', evidence: 'fetched' });
+  if (!item) throw Object.assign(new Error('unreadable'), { code: 'unreadable-image' });
+  push(item);
 }
 
 const attr = (tag, name) => tag.match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`, 'i'))?.[1];
@@ -186,7 +204,7 @@ async function site(domain) {
     try {
       let buf;
       if (c.inline) buf = Buffer.from(c.inline);
-      else { const r = await get(c.url, 10000); if (!r.ok) continue; buf = Buffer.from(await r.arrayBuffer()); }
+      else { const r = await get(c.url, { timeout: 10000 }); if (!r.ok) continue; buf = Buffer.from(await r.arrayBuffer()); }
       const stored = store(buf, `site-${safeName(host)}-${c.kind}-${found.length}`, { ...meta, kind: c.kind, assetUrl: c.url || page.url, evidence: 'fetched' });
       if (stored) found.push(stored);
     } catch { /* one bad image should not lose the site */ }
@@ -221,7 +239,7 @@ const jobs = [
   ...(plan.files || []).map((e) => [`file:${e.name}`, () => importFile(e)]),
   ...(plan.images || []).map((e) => [`image:${e.name}`, () => importImage(e)]),
   ...(plan.apps || []).map((e) => [`app:${e.id || e.term || e}`, () => appStore(e)]),
-  ...(plan.play || []).map((e) => [`play:${e.term || e}`, () => play(e)]),
+  ...(plan.play || []).map((e) => [`play:${e.id || e.term || e}`, () => play(e)]),
   ...(plan.sites || []).map((e) => [`site:${e}`, () => site(e)]),
 ];
 const pending = jobs.filter(([key]) => !state.done[key] || (a['retry-failed'] && state.done[key] !== 'ok'));
@@ -234,16 +252,21 @@ for (const [key, job] of pending) {
 }
 // Curation lives in the plan, so a repeat run cannot bring back what was removed.
 const excluded = new Set(plan.exclude || []);
-state.items = state.items.filter((i) => !excluded.has(i.name) && !excluded.has(i.fullName) && !excluded.has(i.file));
+// A collection started by an older version may hold raw text, so everything is cleaned again here.
+state.items = state.items.map(tidy).filter((i) => !excluded.has(i.name) && !excluded.has(i.fullName) && !excluded.has(i.file));
 for (const [from, to] of Object.entries(plan.rename || {})) for (const i of state.items) if (i.name === from || i.fullName === from) i.name = to;
 save();
 const SOFT = new Set(['already-collected']);
 const current = new Set(jobs.map(([key]) => key));
-const failed = Object.entries(state.done).filter(([k, v]) => v !== 'ok' && !SOFT.has(v) && current.has(k)).map(([k, v]) => `${k} (${v})`);
+const problems = Object.entries(state.done).filter(([k, v]) => v !== 'ok' && !SOFT.has(v) && current.has(k));
+const refused = ([, v]) => String(v).startsWith('robots-');
+const failed = problems.filter((p) => !refused(p)).map(([k, v]) => `${k} (${v})`);
+const blockedByRobots = problems.filter(refused).map(([k, v]) => `${k} (${v})`);
 const left = jobs.filter(([key]) => !state.done[key]).length;
 const seen = {};
 for (const i of state.items) (seen[norm(i.name.replace(/\s*\(.*\)$/, ''))] ||= []).push(i.name);
 const report = {
+  notice: WEB_TEXT_NOTICE,
   collected: state.items.length,
   good: state.items.filter((i) => i.quality === 'good').length,
   low: state.items.filter((i) => i.quality === 'low').map((i) => i.name),
@@ -252,7 +275,9 @@ const report = {
   notes: state.items.filter((i) => i.note).map((i) => `${i.name}: ${i.note}`),
   // A guessed web address can belong to a different company, so each title needs a glance.
   siteTitles: state.items.filter((i) => i.siteTitle).map((i) => `${i.name} <- ${new URL(i.sourceUrl).hostname}: ${i.siteTitle}`),
-  ranThisTime: ran, remaining: left, failed, index: indexPath,
+  // Text that tried to address an agent was replaced, and the logo beside it needs a hard look.
+  withheldText: state.items.filter((i) => i.withheld).map((i) => `${i.name} <- ${i.source}`),
+  ranThisTime: ran, remaining: left, failed, blockedByRobots, index: indexPath,
 };
 say(JSON.stringify(report, null, 2));
 if (left) say('MORE TO DO: run the same command again.');

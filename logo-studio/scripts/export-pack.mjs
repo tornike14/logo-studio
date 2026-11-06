@@ -3,12 +3,12 @@
 // pack.json fields are described in references/production-specs.md.
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { args, encodePng, flatten, hexRgb, readJson, say, write, writeJson } from './lib/core.mjs';
+import { args, encodePng, flatten, hexRgb, needFile, readJson, say, write, writeJson } from './lib/core.mjs';
 import { opaquePng, png, rasterise } from './lib/render.mjs';
 import { writeIco } from './lib/ico.mjs';
 
 const a = args();
-const packPath = resolve(a._[0]);
+const packPath = needFile(a._[0], 'node export-pack.mjs pack.json [--ios-preview]');
 const base = dirname(packPath);
 const p = readJson(packPath);
 const out = resolve(base, p.out || 'logo-pack');
