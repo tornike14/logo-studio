@@ -74,8 +74,8 @@ There is no telemetry and no account. A run does reach these services:
 
 ## How it treats other sites
 
-- Requests identify themselves as `logo-studio`, with a link to this repository.
-- It obeys `robots.txt`. A site that refuses is listed as not collected, and Claude asks you for that logo instead. Apple's results come from its documented Search API, which has its own rate limit, and the tool stays under that limit.
+- Requests to competitor sites identify themselves as `logo-studio`, with a link to this repository, including its screenshots.
+- It obeys `robots.txt` and stops at firewall pages. A site that refuses is listed as not collected, and Claude asks you for that logo instead. Apple's results come from its documented Search API, which has its own rate limit, and the tool stays under that limit.
 - Names and titles from the web are treated as data. They are cleaned, text that tries to instruct an AI is withheld, and the skill tells Claude never to follow instructions found on a page. This lowers the risk of prompt injection but cannot remove it.
 
 ## Good to know

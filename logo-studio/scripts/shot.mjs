@@ -11,16 +11,30 @@ import { pathToFileURL } from 'node:url';
 import { args, encodePng, needFile, needs, say, write } from './lib/core.mjs';
 import { dumpDom, findBrowser, screenshot } from './lib/browser.mjs';
 import { rasterise } from './lib/render.mjs';
-import { robotsVerdict } from './lib/web.mjs';
+import { BLOCK_PAGE, HEADERS, USER_AGENT, robotsVerdict } from './lib/web.mjs';
 
 const a = args();
 const usage = 'node shot.mjs page.html --out shots/desktop.png --width 1280 --scheme light [--go] [--scale 2] [--height 900]';
 const remote = /^https?:/.test(a._[0] || '');
 const page = remote ? a._[0] : needFile(a._[0], usage);
 needs(typeof a.out === 'string', usage);
-if (remote && !a['own-site']) {
+needs(a.width === undefined || Number(a.width) >= 100, usage, '--width must be a number of pixels, 100 or more.');
+needs(a.height === undefined || Number(a.height) >= 50, usage, '--height must be a number of pixels, 50 or more.');
+needs(a.scale === undefined || Number(a.scale) > 0, usage, '--scale must be a number above 0.');
+needs(a.scheme === undefined || a.scheme === 'light' || a.scheme === 'dark', usage, '--scheme must be light or dark.');
+// A refusal stops here, because a browser would otherwise return a screenshot of the firewall and call it a success.
+async function refusal() {
   const verdict = await robotsVerdict(page);
-  if (verdict !== 'ok') { say(JSON.stringify({ ok: false, reason: verdict, note: 'This site does not allow automated reading. Ask the user for the logo, or list the site as not collected.' })); process.exit(1); }
+  if (verdict !== 'ok') return verdict;
+  try {
+    const r = await fetch(page, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    const title = (await r.text()).match(/<title[^>]*>([^<]+)/i)?.[1] || '';
+    return [401, 403, 429, 503].includes(r.status) || BLOCK_PAGE.test(title) ? 'site-blocked' : null;
+  } catch (e) { return String(e?.cause?.code || e?.name || 'unreachable'); }
+}
+if (remote && !a['own-site']) {
+  const reason = await refusal();
+  if (reason) { say(JSON.stringify({ ok: false, reason, note: 'Do not work around this. Ask the user for the logo, or list the site as not collected.' })); process.exit(1); }
 }
 const out = resolve(a.out);
 const width = Number(a.width || 1280), scheme = a.scheme || 'light', scale = Number(a.scale || 1);
@@ -42,7 +56,7 @@ try {
     const h = Number(a.height || 900);
     const src = remote ? page : pathToFileURL(page).href;
     write(frame, frameHtml(src, h, 0));
-    const r = await screenshot(remote && width >= 520 ? page : frame, out, { width: windowWidth, height: h, scheme, scale, waitMs: a.go ? 1000 : 0 });
+    const r = await screenshot(remote && width >= 520 ? page : frame, out, { width: windowWidth, height: h, scheme, scale, waitMs: a.go ? 1000 : 0, userAgent: remote ? USER_AGENT : undefined });
     if (r.ok && width < 520) crop(out, width, h);
     say(JSON.stringify({ out, width, scheme, ...r }));
     if (!r.ok) process.exitCode = 1;

@@ -11,7 +11,7 @@ import { join, extname, resolve, dirname } from 'node:path';
 import { args, needFile, needs, readJson, writeJson, write, say, safeName, sniff, rasterSize, EXT } from './lib/core.mjs';
 import { icoToPng } from './lib/ico.mjs';
 import { rasterise } from './lib/render.mjs';
-import { HEADERS, WEB_TEXT_NOTICE, WITHHELD, cleanSvg, robotsVerdict, webText } from './lib/web.mjs';
+import { BLOCK_PAGE, HEADERS, WEB_TEXT_NOTICE, WITHHELD, cleanSvg, robotsVerdict, webText } from './lib/web.mjs';
 
 const a = args();
 const planPath = a._[0];
@@ -148,7 +148,7 @@ async function play(entry) {
   if (!page.ok) throw Object.assign(new Error('http'), { code: `http-${page.status}` });
   const h = await page.text();
   const m = h.match(/property="og:image" content="([^"]+)"/) || h.match(/content="([^"]+)" property="og:image"/);
-  const title = (h.match(/<title[^>]*>([^<]+)/)?.[1] || id).replace(/\s*-\s*Apps on Google Play.*/, '');
+  const title = decode(h.match(/<title[^>]*>([^<]+)/)?.[1] || id).replace(/\s*-\s*Apps on Google Play.*/, '');
   if (!m) throw Object.assign(new Error('no-image'), { code: 'no-image' });
   const img = await get(m[1].replace(/&amp;/g, '&').replace(/=w\d+.*$/, '=w512'));
   const item = store(Buffer.from(await img.arrayBuffer()), `play-${safeName(id)}`, { name: title.split(/\s*[:–—]\s+|\s+[-|]\s+/)[0], fullName: title, source: 'google-play', sourceUrl: url, packageId: id, kind: 'icon', evidence: 'fetched' });
@@ -187,7 +187,7 @@ async function site(domain) {
   const html = await page.text();
   const host = new URL(page.url).hostname.replace(/^www\./, '');
   const title = decode(html.match(/property=["']og:site_name["'][^>]*content=["']([^"']+)/i)?.[1] || html.match(/<title[^>]*>([^<]+)/i)?.[1] || '');
-  const blocked = !page.ok || /attention required|just a moment|access denied|forbidden|are you (a )?human|security check/i.test(title);
+  const blocked = !page.ok || BLOCK_PAGE.test(title);
   const fromHost = host.split('.')[0].replace(/^./, (c) => c.toUpperCase());
   // Page titles are often slogans. The brand is the part that matches the web address, if any part does.
   const parts = title.split(/\s+[|\u2013\u2014:-]\s+|\s+with\s+|,\s+/);
@@ -210,7 +210,8 @@ async function site(domain) {
     } catch { /* one bad image should not lose the site */ }
     if (found.length >= 3) break;
   }
-  if (!found.length) throw Object.assign(new Error('no-image'), { code: 'no-image' });
+  // "No image" would read as a missing logo, when the truth is that the site turned the tool away.
+  if (!found.length) { const code = blocked ? 'site-blocked' : 'no-image'; throw Object.assign(new Error(code), { code }); }
   const rank = (f) => (f.quality === 'good' ? 2 : 0) + (f.kind === 'logo' ? 1 : 0);
   found.sort((x, y) => rank(y) - rank(x));
   push({ ...found[0], alternates: found.slice(1).map((f) => f.file) });
@@ -259,9 +260,9 @@ save();
 const SOFT = new Set(['already-collected']);
 const current = new Set(jobs.map(([key]) => key));
 const problems = Object.entries(state.done).filter(([k, v]) => v !== 'ok' && !SOFT.has(v) && current.has(k));
-const refused = ([, v]) => String(v).startsWith('robots-');
-const failed = problems.filter((p) => !refused(p)).map(([k, v]) => `${k} (${v})`);
-const blockedByRobots = problems.filter(refused).map(([k, v]) => `${k} (${v})`);
+const turnedAway = ([, v]) => String(v).startsWith('robots-') || v === 'site-blocked';
+const failed = problems.filter((p) => !turnedAway(p)).map(([k, v]) => `${k} (${v})`);
+const refused = problems.filter(turnedAway).map(([k, v]) => `${k} (${v})`);
 const left = jobs.filter(([key]) => !state.done[key]).length;
 const seen = {};
 for (const i of state.items) (seen[norm(i.name.replace(/\s*\(.*\)$/, ''))] ||= []).push(i.name);
@@ -277,7 +278,7 @@ const report = {
   siteTitles: state.items.filter((i) => i.siteTitle).map((i) => `${i.name} <- ${new URL(i.sourceUrl).hostname}: ${i.siteTitle}`),
   // Text that tried to address an agent was replaced, and the logo beside it needs a hard look.
   withheldText: state.items.filter((i) => i.withheld).map((i) => `${i.name} <- ${i.source}`),
-  ranThisTime: ran, remaining: left, failed, blockedByRobots, index: indexPath,
+  ranThisTime: ran, remaining: left, failed, refused, index: indexPath,
 };
 say(JSON.stringify(report, null, 2));
 if (left) say('MORE TO DO: run the same command again.');

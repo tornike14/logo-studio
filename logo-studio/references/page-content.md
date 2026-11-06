@@ -8,7 +8,7 @@ Write for a busy founder, in plain short sentences. Answer first, and let the ev
 
 Do not use "only", "first", "best" or "unique" without the sample: "in these 40 logos" is honest, and "in the category" is a claim you cannot prove. Say what you could not check. In text, `**bold**`, `*italic*` and backticks for code work, `{count}` becomes the number of competitors shown, and `[#5B7CFA]` draws a colour chip. Nothing else is formatted.
 
-Any image that would vanish in dark mode needs a partner: `assetDark` in `sizes`, `appearances`, and `system`, and `oursDark` in the browser scene. Otherwise, the art must carry its own background.
+Any image that would vanish in dark mode needs a partner: `assetDark` in `sizes`, `appearances`, and `system`, and `oursDark` in the browser scene. Anywhere else, including `alternatives`, the art must carry its own background.
 
 ## Shape of the file
 
@@ -34,7 +34,7 @@ Any image that would vanish in dark mode needs a partner: `assetDark` in `sizes`
 - `theme` comes from the brand's colours. Keep the ground quiet, so the logos stand out. The check tests the contrast of both themes.
 - `theme.font` is `rounded`, `sans` or `serif` for the page headings. Pick what suits the brand.
 - If the icon's ground is close to `surface` in either theme, its tile vanishes on the page, so choose a surface that sets it apart.
-- `theme.plate` (light and dark) is the background behind competitor logos. The default mid grey keeps black and white logos visible.
+- `theme.plate` and `theme.dark.plate` are each a `#RRGGBB` colour for the background behind competitor logos. The default mid grey keeps black and white logos visible.
 
 ## Sections
 

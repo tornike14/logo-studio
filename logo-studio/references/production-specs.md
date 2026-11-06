@@ -32,11 +32,12 @@ Required: `brand`, `figure`, `ground`. Everything else improves the result.
 - `figure` is the mark on a transparent background, sized to fill its square as it should sit on the icon.
 - `lockups: false` skips the lockups, for when the icon is a letter of the word and the pair would repeat it.
 - `wordmarkDark` is required when `ground` is dark, because the share image needs a light word.
-- `figureOnLight` is for lockups on white, when `figure` is drawn for a dark ground and would vanish.
+- `figureOnLight` is for lockups and share images on a light ground, when `figure` is drawn for a dark ground and would vanish.
+- `androidScale` (default 0.92) and `maskableScale` (default 0.76) shrink the figure for those icons. Set them to 1 for full-bleed art that already keeps its subject inside the safe zone. `export-pack.mjs` warns when art leaves the safe circle.
 - `figureMono` is white art. Opacity can separate its parts. Without it, a flat silhouette is used.
 - `faviconSvg` is a simplified mark for 16 px, when the full mark is too detailed.
 - `surfaces` can hold `app`, `website` and `print`. `print` adds a `print/` folder with vector art and large proofs. CMYK and PDF files come from the print shop.
-- `signArt` is your own drawn sign layout, used in place of the automatic pairing. `extraSources` is a list of extra art files, such as a second-script wordmark, copied into `source/`.
+- `signArt` is your own drawn sign layout, used in place of the automatic pairing. `extraSources` is a list of extra art files, such as a second-script wordmark, copied into `source/`. A file with the same name as a generated one replaces it. Add `--clean` to the command to empty the output folder first.
 - `iosLayers` splits the mark for Liquid Glass, back to front. Layers must be filled shapes: a stroke with a tint fill closes up its holes. `front: true` puts a layer in its own group, so it catches light separately. Each layer is a full 1024 by 1024 SVG holding one part. Without layers, the figure is one layer.
 - `fillTinted` matters: tinted and clear icons are made from brightness, so the most important part must be the brightest. Check this in the renders.
 
@@ -52,7 +53,7 @@ Arabic, Hebrew, Devanagari and other connected scripts need shaping that this to
 
 - `source/`: mark, dark mark, figure, wordmark, horizontal and stacked lockups.
 - `app/ios/`: opaque 1024 PNGs (light, dark, tinted) and `AppIcon.icon` for iOS 26.
-- `app/android/`: adaptive foreground, background and monochrome layers. The figure is scaled to stay in the 66% safe circle.
+- `app/android/`: adaptive foreground, background and monochrome layers. The figure is scaled by `androidScale`, and its subject must stay inside the 66% safe circle.
 - `web/`: `favicon.ico` (16, 32, 48), `favicon.svg`, `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `og-image.png` (1200 by 630), `site.webmanifest`, `head-snippet.html`.
 
 ## Using the files

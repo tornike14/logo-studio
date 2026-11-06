@@ -43,6 +43,7 @@ export function themeProblems(theme) {
   const out = [];
   for (const [label, t] of [['light', theme], ['dark', theme.dark || {}]]) {
     for (const k of ['ground', 'surface', 'ink', 'inkSoft', 'hair', 'accent', 'warm', 'wash']) if (!/^#[0-9a-fA-F]{6}$/.test(t[k] || '')) out.push(`theme.${label === 'dark' ? 'dark.' : ''}${k} must be a #RRGGBB colour`);
+    if (t.plate !== undefined && !/^#[0-9a-fA-F]{6}$/.test(t.plate)) out.push(`theme.${label === 'dark' ? 'dark.' : ''}plate must be a #RRGGBB colour`);
     if (out.length) continue;
     if (contrast(t.ink, t.ground) < 7) out.push(`${label}: ink on ground contrast ${contrast(t.ink, t.ground).toFixed(1)} is under 7`);
     if (contrast(t.inkSoft, t.surface) < 4.5) out.push(`${label}: soft text on surface contrast ${contrast(t.inkSoft, t.surface).toFixed(1)} is under 4.5`);

@@ -15,7 +15,7 @@ const mode = a._[0];
 const usage = 'node sheets.mjs field|sizes|crop|colours ...  (see the top of sheets.mjs for each mode)';
 needs(['field', 'sizes', 'crop', 'colours'].includes(mode), usage);
 if (mode === 'field' || mode === 'colours') needFile(a.index, usage);
-if (mode === 'sizes') needs(typeof a.svg === 'string', usage);
+if (mode === 'sizes') { needs(typeof a.svg === 'string', usage); a.svg.split(',').forEach((f) => needFile(f, usage)); }
 if (mode === 'crop') { needFile(a.in, usage); needs(typeof a.box === 'string', usage); }
 if (mode !== 'colours') needs(typeof a.out === 'string', usage);
 const dataUri = (buf) => `data:${MIME[sniff(buf)]};base64,${buf.toString('base64')}`;

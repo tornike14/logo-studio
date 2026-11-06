@@ -50,6 +50,14 @@ function monoPixels(size) {
   return r;
 }
 
+// How far the art reaches from the centre, as a share of the canvas width.
+function reach(svg) {
+  const r = rasterise(svg, 128), half = (r.width - 1) / 2;
+  let far = 0;
+  for (let y = 0; y < r.height; y++) for (let x = 0; x < r.width; x++) if (r.pixels[(y * r.width + x) * 4 + 3] > 32) far = Math.max(far, Math.hypot(x - half, y - half));
+  return far / r.width;
+}
+
 const preview = surfaces.includes('ios-preview');
 const master = doc(1024, 1024, place(figure, 0, 0, 1024, 1024), p.ground);
 const masterDark = doc(1024, 1024, place(darkFigure, 0, 0, 1024, 1024), darkGround);
@@ -81,7 +89,7 @@ if (p.wordmark && !preview) {
   const darkGroundShare = 0.299 * gr + 0.587 * gg + 0.114 * gb < 128;
   if (darkGroundShare && !p.wordmarkDark) warnings.push('The ground is dark, so the share image needs wordmarkDark, or the word will not show.');
   const ogScale = Math.min(960 / W, 300 / H);
-  if (surfaces.includes('website')) save('web/og-image.png', opaquePng(doc(1200, 630, (p.lockups === false ? (() => { const s = Math.min(900 / wW, 220 / wH); return place(darkGroundShare ? wordDark : word, (1200 - wW * s) / 2, (630 - wH * s) / 2, wW * s, wH * s); })() : place(lockup(figure, darkGroundShare ? wordDark : word), (1200 - W * ogScale) / 2, (630 - H * ogScale) / 2, W * ogScale, H * ogScale)), p.ground), 1200, p.ground));
+  if (surfaces.includes('website')) save('web/og-image.png', opaquePng(doc(1200, 630, (p.lockups === false ? (() => { const s = Math.min(900 / wW, 220 / wH); return place(darkGroundShare ? wordDark : word, (1200 - wW * s) / 2, (630 - wH * s) / 2, wW * s, wH * s); })() : place(lockup(darkGroundShare ? figure : figureOnLight, darkGroundShare ? wordDark : word), (1200 - W * ogScale) / 2, (630 - H * ogScale) / 2, W * ogScale, H * ogScale)), p.ground), 1200, p.ground));
 } else if (surfaces.includes('website') && !p.wordmark) save('web/og-image.png', opaquePng(doc(1200, 630, place(figure, 300, 15, 600, 600), p.ground), 1200, p.ground));
 
 if (surfaces.includes('app') || surfaces.includes('ios-preview')) {
@@ -90,8 +98,9 @@ if (surfaces.includes('app') || surfaces.includes('ios-preview')) {
   save('app/ios/icon-dark-1024.png', opaquePng(masterDark, 1024, darkGround));
   const m = monoPixels(1024);
   save('app/ios/icon-tinted-1024.png', encodePng(flatten(m.pixels, '#000000'), m.width, m.height, 3));
-  // Android's safe zone is the middle 66%, so a full-size figure is scaled down to stay uncropped.
+  // Android keeps the middle 66% safe. androidScale shrinks the figure, and the warning below says if that is not enough.
   const scale = p.androidScale ?? 0.92;
+  if (reach(figure) * scale > 0.335) warnings.push(`At androidScale ${scale} the figure leaves the Android safe circle and may be cropped. Check foreground.png, or set androidScale.`);
   save('app/android/foreground.png', png(inset(figure, scale), 1024));
   save('app/android/background.png', opaquePng(doc(1024, 1024, '', p.ground), 1024, p.ground));
   const small = monoPixels(Math.round(1024 * scale));
@@ -124,8 +133,10 @@ if (surfaces.includes('website')) {
   save('web/apple-touch-icon.png', opaquePng(master, 180, p.ground));
   save('web/icon-192.png', png(master, 192));
   save('web/icon-512.png', png(master, 512));
-  // Maskable icons keep their content inside the middle 80%.
-  save('web/icon-512-maskable.png', opaquePng(inset(figure, 0.76, p.ground), 512, p.ground));
+  // Maskable icons keep their content inside the middle 80%. Full-bleed art sets maskableScale to 1.
+  const maskable = p.maskableScale ?? 0.76;
+  if (reach(figure) * maskable > 0.405) warnings.push(`At maskableScale ${maskable} the figure leaves the maskable safe circle. Check icon-512-maskable.png, or set maskableScale.`);
+  save('web/icon-512-maskable.png', opaquePng(inset(figure, maskable, p.ground), 512, p.ground));
   save('web/site.webmanifest', JSON.stringify({ name: p.brand, short_name: p.shortName || p.brand, icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }], theme_color: p.ground, background_color: p.ground, display: 'standalone' }, null, 2) + '\n');
   save('web/head-snippet.html', `<link rel="icon" href="/favicon.ico" sizes="48x48">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/apple-touch-icon.png">\n<link rel="manifest" href="/site.webmanifest">\n<meta name="theme-color" content="${p.ground}">\n<meta property="og:image" content="/og-image.png">\n`);
 }
